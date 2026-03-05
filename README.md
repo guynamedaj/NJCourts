@@ -53,16 +53,16 @@ or
 ## Project Structure
 
 app/
- ├── java/
- │    └── edu.njit.njcourts
- │         ├── ui
- │         ├── models
- │         ├── adapters
- │         └── utils
- ├── res/
- │    ├── layout
- │    ├── drawable
- │    └── values
+├── java/
+│   └── edu.njit.njcourts
+│       ├── ui
+│       ├── models
+│       ├── adapters
+│       └── utils
+├── res/
+│   ├── layout
+│   ├── drawable
+│   └── values
 
 ---
 
