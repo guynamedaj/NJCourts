@@ -51,7 +51,7 @@ or
 ---
 
 ## Project Structure
-
+```
 app/
 ├── java/
 │   └── edu.njit.njcourts
@@ -63,7 +63,7 @@ app/
 │   ├── layout
 │   ├── drawable
 │   └── values
-
+```
 ---
 
 ## Development Workflow
