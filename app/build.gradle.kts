@@ -36,18 +36,22 @@ dependencies {
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
-    
+
     // Task 6: ViewModel
     implementation(libs.lifecycle.viewmodel)
     implementation(libs.lifecycle.livedata)
-    
+
     // Task 7: Room
     implementation(libs.room.runtime)
+    implementation(libs.object1.detection.common)
+    implementation(libs.object1.detection)
     annotationProcessor(libs.room.compiler)
-    
+
     // Task 10/20: ML Kit
     implementation(libs.mlkit.face.detection)
-    
+    //implementation(libs.mlkit.object.detection)
+
+
     // Task 14/31: Retrofit
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
@@ -61,4 +65,5 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+
 }
