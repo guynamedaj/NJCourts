@@ -12,6 +12,8 @@ room = "2.6.1"
 retrofit = "2.11.0"
 mlkit-face = "16.1.7"
 camerax = "1.4.1"
+objectDetectionCommon = "18.0.0"
+objectDetection = "17.0.2"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -37,6 +39,8 @@ camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = 
 camerax-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+object1-detection-common = { group = "com.google.mlkit", name = "object-detection-common", version.ref = "objectDetectionCommon" }
+object1-detection = { group = "com.google.mlkit", name = "object-detection", version.ref = "objectDetection" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
