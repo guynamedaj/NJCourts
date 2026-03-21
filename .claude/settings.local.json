@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/FGCra/AppData/Local/Android/Sdk/emulator/**)",
+      "Bash(powershell -Command \"[Environment]::SetEnvironmentVariable\\(''ANDROID_HOME'', ''C:\\\\Users\\\\FGCra\\\\AppData\\\\Local\\\\Android\\\\Sdk'', ''User''\\)\")"
+    ]
+  }
+}
