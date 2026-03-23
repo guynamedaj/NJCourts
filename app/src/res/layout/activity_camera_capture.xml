@@ -23,44 +23,7 @@
             android:layout_height="match_parent"
             android:scaleType="fitCenter" />
 
-        <!-- Debug Info Overlay -->
         <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top|center_horizontal"
-            android:layout_marginTop="40dp"
-            android:background="#AA000000"
-            android:orientation="vertical"
-            android:padding="12dp">
-
-            <TextView
-                android:id="@+id/text_compression_info"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#FFF"
-                android:textStyle="bold"
-                android:text="Viewing: Compressed (142 KB)" />
-
-            <TextView
-                android:id="@+id/text_original_info"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="#CCC"
-                android:textSize="12sp"
-                android:text="Original: 5.2 MB" />
-
-            <Button
-                android:id="@+id/btn_toggle_compare"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:text="HOLD TO VIEW ORIGINAL"
-                android:textColor="#00E676" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/layout_preview_controls"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
@@ -88,6 +51,18 @@
                 android:backgroundTint="#4CAF50"
                 android:text="Finish" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/text_compression_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="40dp"
+            android:background="#AA000000"
+            android:padding="8dp"
+            android:textColor="#FFF"
+            android:textStyle="bold"
+            android:text="Compressed Preview: 142 KB" />
     </FrameLayout>
 
     <!-- Bottom Controls for Camera -->
