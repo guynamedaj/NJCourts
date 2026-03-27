@@ -14,6 +14,9 @@ mlkit-face = "16.1.7"
 camerax = "1.5.3"
 objectDetectionCommon = "18.0.0"
 objectDetection = "17.0.2"
+imageLabeling = "17.0.9"
+poseDetection = "18.0.0-beta5"
+segmentationSelfie = "16.0.0-beta6"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -34,6 +37,9 @@ retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = 
 retrofit-converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
 # ML Kit
 mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", version.ref = "mlkit-face" }
+mlkit-pose-detection = { group = "com.google.mlkit", name = "pose-detection", version.ref = "poseDetection" }
+mlkit-image-labeling = { group = "com.google.mlkit", name = "image-labeling", version.ref = "imageLabeling" }
+mlkit-segmentation-selfie = { group = "com.google.mlkit", name = "segmentation-selfie", version.ref = "segmentationSelfie" }
 # CameraX
 camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
 camerax-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }

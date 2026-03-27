@@ -32,16 +32,25 @@ import com.google.mlkit.vision.face.Face;
 import com.google.mlkit.vision.face.FaceDetection;
 import com.google.mlkit.vision.face.FaceDetector;
 import com.google.mlkit.vision.face.FaceDetectorOptions;
-import com.google.mlkit.vision.objects.ObjectDetection;
-import com.google.mlkit.vision.objects.ObjectDetector;
-import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions;
-import com.google.mlkit.vision.objects.DetectedObject;
+import com.google.mlkit.vision.label.ImageLabel;
+import com.google.mlkit.vision.label.ImageLabeling;
+import com.google.mlkit.vision.label.ImageLabeler;
+import com.google.mlkit.vision.label.defaults.ImageLabelerOptions;
+import com.google.mlkit.vision.pose.Pose;
+import com.google.mlkit.vision.pose.PoseDetection;
+import com.google.mlkit.vision.pose.PoseDetector;
+import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions;
+import com.google.mlkit.vision.segmentation.Segmenter;
+import com.google.mlkit.vision.segmentation.selfie.SelfieSegmenterOptions;
+import com.google.mlkit.vision.segmentation.Segmentation;
+import com.google.mlkit.vision.segmentation.SegmentationMask;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Locale;
 
 import edu.njit.njcourts.R;
 
@@ -50,11 +59,14 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private static final String TAG = "CameraCapture";
     
     private PreviewView previewView;
-    private Button btnBack, btnCapture, btnTestSaved;
+    private Button btnCapture;
+    private Button btnTestSaved;
     private ImageCapture imageCapture;
     
-    private ObjectDetector objectDetector;
     private FaceDetector faceDetector;
+    private ImageLabeler imageLabeler;
+    private PoseDetector poseDetector;
+    private Segmenter selfieSegmenter;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
@@ -81,7 +93,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
         setContentView(R.layout.activity_camera_capture);
 
         previewView = findViewById(R.id.previewView);
-        btnBack = findViewById(R.id.btn_back);
+        Button btnBack = findViewById(R.id.btn_back);
         btnCapture = findViewById(R.id.btn_capture);
         btnTestSaved = findViewById(R.id.btn_test_saved);
 
@@ -100,23 +112,27 @@ public class CameraCaptureActivity extends AppCompatActivity {
     }
 
     private void initializeDetectors() {
-        // 1. Object Detector (Generic)
-        ObjectDetectorOptions objOptions = new ObjectDetectorOptions.Builder()
-                .setDetectorMode(ObjectDetectorOptions.SINGLE_IMAGE_MODE)
-                .enableMultipleObjects()
-                .enableClassification()
-                .build();
-        objectDetector = ObjectDetection.getClient(objOptions);
-
-        // 2. Face Detector (Specific for identifying people)
-        FaceDetectorOptions faceOptions = new FaceDetectorOptions.Builder()
+        // 1. Face Detector
+        faceDetector = FaceDetection.getClient(new FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
-                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
-                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
-                .build();
-        faceDetector = FaceDetection.getClient(faceOptions);
+                .build());
+
+        // 2. Image Labeler
+        imageLabeler = ImageLabeling.getClient(new ImageLabelerOptions.Builder()
+                .setConfidenceThreshold(0.5f)
+                .build());
+
+        // 3. Pose Detector
+        poseDetector = PoseDetection.getClient(new PoseDetectorOptions.Builder()
+                .setDetectorMode(PoseDetectorOptions.SINGLE_IMAGE_MODE)
+                .build());
+
+        // 4. Selfie Segmenter (Detects human outline)
+        selfieSegmenter = Segmentation.getClient(new SelfieSegmenterOptions.Builder()
+                .setDetectorMode(SelfieSegmenterOptions.SINGLE_IMAGE_MODE)
+                .build());
         
-        Log.d(TAG, "Detectors initialized");
+        Log.d(TAG, "All detectors initialized");
     }
 
     private void startCamera() {
@@ -169,42 +185,69 @@ public class CameraCaptureActivity extends AppCompatActivity {
             bitmap = correctBitmapRotation(imageUri, bitmap);
             InputImage image = InputImage.fromBitmap(bitmap, 0);
 
-            // Run both detectors in parallel
-            Task<List<DetectedObject>> objTask = objectDetector.process(image);
+            // Run all detectors in parallel
             Task<List<Face>> faceTask = faceDetector.process(image);
+            Task<List<ImageLabel>> labelTask = imageLabeler.process(image);
+            Task<Pose> poseTask = poseDetector.process(image);
+            Task<SegmentationMask> segmentTask = selfieSegmenter.process(image);
 
-            Tasks.whenAllComplete(objTask, faceTask).addOnCompleteListener(t -> {
+            Tasks.whenAllComplete(faceTask, labelTask, poseTask, segmentTask).addOnCompleteListener(t -> {
                 btnCapture.setEnabled(true);
                 btnTestSaved.setEnabled(true);
 
-                boolean personOrFaceFound = false;
+                boolean personFound = false;
                 StringBuilder debugLabels = new StringBuilder("Found: ");
 
-                // Check Face results
-                if (faceTask.isSuccessful() && !faceTask.getResult().isEmpty()) {
-                    personOrFaceFound = true;
+                // 1. Check Face
+                if (faceTask.isSuccessful() && faceTask.getResult() != null && !faceTask.getResult().isEmpty()) {
+                    personFound = true;
                     debugLabels.append("[Face] ");
                 }
 
-                // Check Object results
-                if (objTask.isSuccessful()) {
-                    for (DetectedObject obj : objTask.getResult()) {
-                        for (DetectedObject.Label label : obj.getLabels()) {
-                            String text = label.getText();
-                            debugLabels.append(text).append(" ");
-                            if ("People".equalsIgnoreCase(text) || "Fashion good".equalsIgnoreCase(text)) {
-                                personOrFaceFound = true;
-                            }
+                // 2. Check Pose
+                if (poseTask.isSuccessful() && poseTask.getResult() != null) {
+                    if (!poseTask.getResult().getAllPoseLandmarks().isEmpty()) {
+                        personFound = true;
+                        debugLabels.append("[Pose] ");
+                    }
+                }
+
+                // 3. Check Segmentation (Human Outline)
+                if (segmentTask.isSuccessful() && segmentTask.getResult() != null) {
+                    SegmentationMask mask = segmentTask.getResult();
+                    ByteBuffer buffer = mask.getBuffer();
+                    int width = mask.getWidth();
+                    int height = mask.getHeight();
+                    
+                    float totalPersonPixels = 0;
+                    for (int i = 0; i < width * height; i++) {
+                        if (buffer.getFloat() > 0.4) totalPersonPixels++;
+                    }
+                    float personPercentage = (totalPersonPixels / (width * height)) * 100;
+                    if (personPercentage > 10.0) { // If human covers > 1% of the image
+                        personFound = true;
+                        debugLabels.append(String.format(Locale.US, "[Seg:%.1f%%] ", personPercentage));
+                    }
+                }
+
+                // 4. Check Labels
+                if (labelTask.isSuccessful() && labelTask.getResult() != null) {
+                    for (ImageLabel label : labelTask.getResult()) {
+                        String text = label.getText();
+                        debugLabels.append(String.format(Locale.US, "%s (%.2f) ", text, label.getConfidence()));
+                        if (text.toLowerCase().contains("person") || text.toLowerCase().contains("human") || 
+                            text.toLowerCase().contains("man") || text.toLowerCase().contains("woman")) {
+                            personFound = true;
                         }
                     }
                 }
 
-                Toast.makeText(this, debugLabels.toString(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, debugLabels.toString(), Toast.LENGTH_LONG).show();
 
-                if (personOrFaceFound) {
-                    Toast.makeText(this, " Person/Face detected. Please retake.", Toast.LENGTH_LONG).show();
+                if (personFound) {
+                    Toast.makeText(this, "⚠️ Person detected. Please retake photo of vehicle only.", Toast.LENGTH_LONG).show();
                 } else {
-                    Toast.makeText(this, " Photo accepted.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "✅ Photo accepted.", Toast.LENGTH_SHORT).show();
                 }
             });
 
