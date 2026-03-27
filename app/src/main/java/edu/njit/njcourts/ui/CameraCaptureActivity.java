@@ -38,15 +38,24 @@ import com.google.mlkit.vision.face.Face;
 import com.google.mlkit.vision.face.FaceDetection;
 import com.google.mlkit.vision.face.FaceDetector;
 import com.google.mlkit.vision.face.FaceDetectorOptions;
-import com.google.mlkit.vision.objects.ObjectDetection;
-import com.google.mlkit.vision.objects.ObjectDetector;
-import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions;
-import com.google.mlkit.vision.objects.DetectedObject;
+import com.google.mlkit.vision.label.ImageLabel;
+import com.google.mlkit.vision.label.ImageLabeling;
+import com.google.mlkit.vision.label.ImageLabeler;
+import com.google.mlkit.vision.label.defaults.ImageLabelerOptions;
+import com.google.mlkit.vision.pose.Pose;
+import com.google.mlkit.vision.pose.PoseDetection;
+import com.google.mlkit.vision.pose.PoseDetector;
+import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions;
+import com.google.mlkit.vision.segmentation.Segmenter;
+import com.google.mlkit.vision.segmentation.selfie.SelfieSegmenterOptions;
+import com.google.mlkit.vision.segmentation.Segmentation;
+import com.google.mlkit.vision.segmentation.SegmentationMask;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
 
 import edu.njit.njcourts.R;
 import edu.njit.njcourts.utils.ImageUtils;
@@ -56,7 +65,8 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private static final String TAG = "CameraCapture";
     
     private PreviewView previewView;
-    private Button btnBack, btnCapture, btnTestSaved;
+    private Button btnCapture;
+    private Button btnTestSaved;
     private ImageCapture imageCapture;
     
     // Preview Overlay Views
@@ -73,6 +83,9 @@ public class CameraCaptureActivity extends AppCompatActivity {
 
     private ObjectDetector objectDetector;
     private FaceDetector faceDetector;
+    private ImageLabeler imageLabeler;
+    private PoseDetector poseDetector;
+    private Segmenter selfieSegmenter;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
@@ -112,7 +125,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
 
     private void initializeViews() {
         previewView = findViewById(R.id.previewView);
-        btnBack = findViewById(R.id.btn_back);
+        Button btnBack = findViewById(R.id.btn_back);
         btnCapture = findViewById(R.id.btn_capture);
         btnTestSaved = findViewById(R.id.btn_test_saved);
         
@@ -243,6 +256,9 @@ public class CameraCaptureActivity extends AppCompatActivity {
 
             Task<List<DetectedObject>> objTask = objectDetector.process(image);
             Task<List<Face>> faceTask = faceDetector.process(image);
+            Task<List<ImageLabel>> labelTask = imageLabeler.process(image);
+            Task<Pose> poseTask = poseDetector.process(image);
+            Task<SegmentationMask> segmentTask = selfieSegmenter.process(image);
 
             final Bitmap finalBitmap = bitmap; 
 
