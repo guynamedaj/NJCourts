@@ -45,11 +45,13 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.object1.detection.common)
     implementation(libs.object1.detection)
+    implementation(libs.mlkit.image.labeling)
     annotationProcessor(libs.room.compiler)
 
     // Task 10/20: ML Kit
     implementation(libs.mlkit.face.detection)
-    //implementation(libs.mlkit.object.detection)
+    implementation(libs.mlkit.pose.detection)
+    implementation(libs.mlkit.segmentation.selfie)
 
 
     // Task 14/31: Retrofit
