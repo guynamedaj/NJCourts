@@ -5,8 +5,7 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
 /**
- * Task 7: RoomDB Entity.
- * Updated to include compressed photo storage.
+ * Task 7: RoomDB Entity for Tickets.
  */
 @Entity(tableName = "tickets")
 public class TicketEntity {
@@ -19,12 +18,6 @@ public class TicketEntity {
     
     // Status fields: LOCAL_ONLY, SYNCED, FAILED
     public String syncStatus;
-
-    /**
-     * Stores the compressed photo as a BLOB in the database.
-     * Targeted to be < 250KB via ImageUtils.
-     */
-    public byte[] photoBlob;
 
     public TicketEntity(@NonNull String ticketNumber, String violation, String vehicleSummary, String syncStatus) {
         this.ticketNumber = ticketNumber;
