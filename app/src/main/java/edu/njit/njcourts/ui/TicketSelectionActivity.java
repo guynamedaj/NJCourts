@@ -15,7 +15,11 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+
 import edu.njit.njcourts.R;
+import edu.njit.njcourts.data.AppDatabase;
+import edu.njit.njcourts.data.TicketEntity;
 import edu.njit.njcourts.models.Ticket;
 
 public class TicketSelectionActivity extends AppCompatActivity {
@@ -35,6 +39,10 @@ public class TicketSelectionActivity extends AppCompatActivity {
         initializeViews();
         setupDemoData();
         setupSpinner();
+        
+        // CRITICAL FIX: Only sync demo data if database is empty
+        // This prevents CASCADE delete of photos when tickets are "replaced"
+        syncDemoTicketsToDatabaseIfEmpty();
 
         btnShowDetails.setOnClickListener(v -> {
             if (selectedTicket != null && !"Select a Ticket".equals(selectedTicket.getTicketNumber())) {
@@ -44,12 +52,28 @@ public class TicketSelectionActivity extends AppCompatActivity {
 
         btnProceed.setOnClickListener(v -> {
             if (selectedTicket != null && !"Select a Ticket".equals(selectedTicket.getTicketNumber())) {
-                Intent intent = new Intent(this, CameraCaptureActivity.class);
+                Intent intent = new Intent(this, CaseSummaryActivity.class);
                 intent.putExtra("TICKET_ID", selectedTicket.getTicketNumber());
                 startActivity(intent);
             } else {
-                // Show error message as requested
                 Toast.makeText(this, "Please select a ticket", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void syncDemoTicketsToDatabaseIfEmpty() {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            AppDatabase db = AppDatabase.getDatabase(getApplicationContext());
+            int count = db.ticketDao().getTicketCountSync();
+            if (count == 0) {
+                List<TicketEntity> entities = new ArrayList<>();
+                for (Ticket t : demoTickets) {
+                    if (!"Select a Ticket".equals(t.getTicketNumber())) {
+                        entities.add(new TicketEntity(t.getTicketNumber(), t.getViolation(), 
+                            t.getColor() + " " + t.getMake(), "SYNCED"));
+                    }
+                }
+                db.ticketDao().insertTickets(entities);
             }
         });
     }
@@ -64,41 +88,80 @@ public class TicketSelectionActivity extends AppCompatActivity {
     private void setupDemoData() {
         demoTickets = new ArrayList<>();
         
-        // Placeholder at index 0
-        demoTickets.add(new Ticket(
-            "Select a Ticket", "", "", "", "", "",
-            "", "", "", "", "", 
-            "", "", "", "", "", "", "", ""
-        ));
+        // Use the new Builder Pattern for better readability
+        demoTickets.add(new Ticket.Builder().setTicketNumber("Select a Ticket").build());
 
-        // Ticket 1: From Screenshot
-        demoTickets.add(new Ticket(
-            "260146 - NJ | OUS70", "OUS70", "NJ - NEW JERSEY", "ACURA", "2 DOOR", "BLUE",
-            "19:2-3.6 PARKING PROHIBITED", "02/25/2026", "02:13 PM", "03/04/2026", "09:00 AM", 
-            "N", "S", "2026-02-25 14:19:18.450", "1111", "D88", "260146", "I", "MARKET ST"
-        ));
+        demoTickets.add(new Ticket.Builder()
+                .setTicketNumber("260146 - NJ | OUS70")
+                .setLicPlate("OUS70")
+                .setState("NJ - NEW JERSEY")
+                .setMake("ACURA")
+                .setBodyType("2 DOOR")
+                .setColor("BLUE")
+                .setViolation("19:2-3.6 PARKING PROHIBITED")
+                .setViolDate("02/25/2026")
+                .setViolTime("02:13 PM")
+                .setCourtDate("03/04/2026")
+                .setCourtTime("09:00 AM")
+                .setMAppear("N")
+                .setTransferStatCode("S")
+                .setTransferDT("2026-02-25 14:19:18.450")
+                .setCourtCode("1111")
+                .setAlphaCode("D88")
+                .setSeqNum("260146")
+                .setStatusCode("I")
+                .setStreet("MARKET ST")
+                .build());
 
-        // Ticket 2: Demo
-        demoTickets.add(new Ticket(
-            "260147 - NJ | ABC12", "ABC12", "NJ - NEW JERSEY", "HONDA", "4 DOOR", "SILVER",
-            "39:4-98 SPEEDING", "02/26/2026", "10:15 AM", "03/12/2026", "01:00 PM", 
-            "N", "S", "2026-02-26 10:30:18.000", "1214", "P15", "260147", "I", "BROAD ST"
-        ));
+        demoTickets.add(new Ticket.Builder()
+                .setTicketNumber("260147 - NJ | ABC12")
+                .setLicPlate("ABC12")
+                .setState("NJ - NEW JERSEY")
+                .setMake("HONDA")
+                .setBodyType("4 DOOR")
+                .setColor("SILVER")
+                .setViolation("39:4-98 SPEEDING")
+                .setViolDate("02/26/2026")
+                .setViolTime("10:15 AM")
+                .setCourtDate("03/12/2026")
+                .setCourtTime("01:00 PM")
+                .setMAppear("N")
+                .setTransferStatCode("S")
+                .setTransferDT("2026-02-26 10:30:18.000")
+                .setCourtCode("1214")
+                .setAlphaCode("P15")
+                .setSeqNum("260147")
+                .setStatusCode("I")
+                .setStreet("BROAD ST")
+                .build());
 
-        // Ticket 3: Demo (Updated from NY to NJ)
-        demoTickets.add(new Ticket(
-            "260148 - NJ | XYZ99", "XYZ99", "NJ - NEW JERSEY", "FORD", "TRUCK", "WHITE",
-            "39:4-138 FIRE HYDRANT", "02/27/2026", "11:45 PM", "03/15/2026", "09:30 AM", 
-            "N", "S", "2026-02-27 23:55:00.000", "1500", "R22", "260148", "I", "HIGH ST"
-        ));
+        demoTickets.add(new Ticket.Builder()
+                .setTicketNumber("260148 - NJ | XYZ99")
+                .setLicPlate("XYZ99")
+                .setState("NJ - NEW JERSEY")
+                .setMake("FORD")
+                .setBodyType("TRUCK")
+                .setColor("WHITE")
+                .setViolation("39:4-138 FIRE HYDRANT")
+                .setViolDate("02/27/2026")
+                .setViolTime("11:45 PM")
+                .setCourtDate("03/15/2026")
+                .setCourtTime("09:30 AM")
+                .setMAppear("N")
+                .setTransferStatCode("S")
+                .setTransferDT("2026-02-27 23:55:00.000")
+                .setCourtCode("1500")
+                .setAlphaCode("R22")
+                .setSeqNum("260148")
+                .setStatusCode("I")
+                .setStreet("HIGH ST")
+                .build());
     }
 
     private void setupSpinner() {
-        ArrayAdapter<Ticket> adapter = new ArrayAdapter<>(this, 
-            android.R.layout.simple_spinner_item, demoTickets);
+        ArrayAdapter<Ticket> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, demoTickets);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerTickets.setAdapter(adapter);
-
         spinnerTickets.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -114,12 +177,11 @@ public class TicketSelectionActivity extends AppCompatActivity {
         if ("Select a Ticket".equals(t.getTicketNumber())) {
             textCarDescription.setText("");
             btnShowDetails.setVisibility(View.GONE);
+            btnProceed.setText("TAKE PHOTO"); 
             return;
         }
-
         btnShowDetails.setVisibility(View.VISIBLE);
-
-        // Orange description text
+        btnProceed.setText("VIEW EVIDENCE");
         String desc = t.getColor() + " " + t.getBodyType() + " " + t.getMake() + " on " + t.getStreet();
         textCarDescription.setText(desc.toUpperCase());
     }
@@ -129,36 +191,14 @@ public class TicketSelectionActivity extends AppCompatActivity {
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setContentView(R.layout.dialog_ticket_details);
         dialog.setCancelable(true);
-
         TextView title = dialog.findViewById(R.id.text_dialog_title);
         title.setText("Ticket # " + t.getTicketNumber());
-
         ImageButton closeBtn = dialog.findViewById(R.id.btn_close_dialog);
         closeBtn.setOnClickListener(v -> dialog.dismiss());
-
         TextView summaryText = dialog.findViewById(R.id.text_full_summary_dialog);
-        
         StringBuilder summary = new StringBuilder();
-        summary.append("SUMMARY:\n");
-        summary.append(". Lic Plate: ").append(t.getLicPlate()).append("\n");
-        summary.append(". State: ").append(t.getState()).append("\n");
-        summary.append(". Make: ").append(t.getMake()).append("\n");
-        summary.append(". Body Type: ").append(t.getBodyType()).append("\n");
-        summary.append(". Color: ").append(t.getColor()).append("\n");
-        summary.append(". Violation: ").append(t.getViolation()).append("\n");
-        summary.append(". Viol Date: ").append(t.getViolDate()).append("\n");
-        summary.append(". Viol Time: ").append(t.getViolTime()).append("\n");
-        summary.append(". Court Date: ").append(t.getCourtDate()).append("\n");
-        summary.append(". Court Time: ").append(t.getCourtTime()).append("\n");
-        summary.append(". Street: ").append(t.getStreet()).append("\n");
-        summary.append("****************************************\n");
-        summary.append("DETAILS:\n");
-        summary.append(". Court Code: ").append(t.getCourtCode()).append("\n");
-        summary.append(". Seq Num: ").append(t.getSeqNum()).append("\n");
-        summary.append(". Status Code: ").append(t.getStatusCode());
-        
+        summary.append("SUMMARY:\n. Lic Plate: ").append(t.getLicPlate()).append("\n. State: ").append(t.getState()).append("\n. Make: ").append(t.getMake()).append("\n. Body Type: ").append(t.getBodyType()).append("\n. Color: ").append(t.getColor()).append("\n. Violation: ").append(t.getViolation()).append("\n. Street: ").append(t.getStreet()).append("\n****************************************\nDETAILS:\n. Court Code: ").append(t.getCourtCode()).append("\n. Seq Num: ").append(t.getSeqNum()).append("\n. Status Code: ").append(t.getStatusCode());
         summaryText.setText(summary.toString());
-
         dialog.show();
         Window window = dialog.getWindow();
         if (window != null) {
