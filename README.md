@@ -73,7 +73,7 @@ app/
 ## Development Workflow
 Create a feature branch when working on new functionality.
 ```bash
-git checkout -b feature/your-feature-name
+git switch -c feature/feature1
 ```
 After completing work, open a Pull Request for review.
 
