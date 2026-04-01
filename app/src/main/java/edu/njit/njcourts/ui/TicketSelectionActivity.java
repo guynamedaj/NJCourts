@@ -13,9 +13,12 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
+import edu.njit.njcourts.adapters.TicketAdapter;
 
 import edu.njit.njcourts.R;
 import edu.njit.njcourts.data.AppDatabase;
@@ -25,6 +28,7 @@ import edu.njit.njcourts.models.Ticket;
 public class TicketSelectionActivity extends AppCompatActivity {
 
     private Spinner spinnerTickets;
+    private RecyclerView recyclerRecentTickets;
     private TextView textCarDescription;
     private Button btnProceed;
     private ImageButton btnShowDetails;
@@ -39,6 +43,7 @@ public class TicketSelectionActivity extends AppCompatActivity {
         initializeViews();
         setupDemoData();
         setupSpinner();
+        setupRecentTickets();
         
         // CRITICAL FIX: Only sync demo data if database is empty
         // This prevents CASCADE delete of photos when tickets are "replaced"
@@ -80,6 +85,7 @@ public class TicketSelectionActivity extends AppCompatActivity {
 
     private void initializeViews() {
         spinnerTickets = findViewById(R.id.spinner_tickets);
+        recyclerRecentTickets = findViewById(R.id.recycler_recent_tickets);
         textCarDescription = findViewById(R.id.text_car_description);
         btnProceed = findViewById(R.id.btn_proceed);
         btnShowDetails = findViewById(R.id.btn_show_details);
@@ -171,6 +177,32 @@ public class TicketSelectionActivity extends AppCompatActivity {
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
+    }
+
+    private void setupRecentTickets() {
+        List<Ticket> recentTickets = new ArrayList<>();
+        for (int i = 1; i < demoTickets.size(); i++) {
+            recentTickets.add(demoTickets.get(i));
+        }
+
+        recyclerRecentTickets.setLayoutManager(new LinearLayoutManager(this));
+        TicketAdapter recentAdapter = new TicketAdapter(recentTickets, new TicketAdapter.OnTicketClickListener() {
+            @Override
+            public void onTicketClick(Ticket ticket) {
+                selectedTicket = ticket;
+                updateUI(selectedTicket);
+                int spinnerIndex = demoTickets.indexOf(ticket);
+                if (spinnerIndex >= 0) {
+                    spinnerTickets.setSelection(spinnerIndex);
+                }
+            }
+
+            @Override
+            public void onTicketInfoClick(Ticket ticket) {
+                showTicketDetailsDialog(ticket);
+            }
+        });
+        recyclerRecentTickets.setAdapter(recentAdapter);
     }
 
     private void updateUI(Ticket t) {

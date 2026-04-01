@@ -3,6 +3,7 @@ package edu.njit.njcourts.adapters;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -21,6 +22,7 @@ public class TicketAdapter extends RecyclerView.Adapter<TicketAdapter.TicketView
 
     public interface OnTicketClickListener {
         void onTicketClick(Ticket ticket);
+        void onTicketInfoClick(Ticket ticket);
     }
 
     public TicketAdapter(List<Ticket> tickets, OnTicketClickListener listener) {
@@ -48,24 +50,26 @@ public class TicketAdapter extends RecyclerView.Adapter<TicketAdapter.TicketView
 
     static class TicketViewHolder extends RecyclerView.ViewHolder {
         TextView textTicketNumber, textViolation, textVehicle;
+        ImageButton btnTicketInfo;
 
         public TicketViewHolder(@NonNull View itemView) {
             super(itemView);
             textTicketNumber = itemView.findViewById(R.id.text_ticket_number);
             textViolation = itemView.findViewById(R.id.text_violation);
             textVehicle = itemView.findViewById(R.id.text_vehicle);
+            btnTicketInfo = itemView.findViewById(R.id.btn_ticket_info);
         }
 
         public void bind(Ticket ticket, OnTicketClickListener listener) {
-            textTicketNumber.setText("Ticket: " + ticket.getTicketNumber());
-            // Updated to match the latest model fields
+            textTicketNumber.setText("Ticket # " + ticket.getTicketNumber());
             textViolation.setText(ticket.getViolation());
             
             String vehicleSummary = ticket.getColor() + " " + ticket.getMake() + " " + ticket.getBodyType() + 
-                                   " - Plate: " + ticket.getLicPlate();
+                                   " on " + ticket.getStreet();
             textVehicle.setText(vehicleSummary);
 
             itemView.setOnClickListener(v -> listener.onTicketClick(ticket));
+            btnTicketInfo.setOnClickListener(v -> listener.onTicketInfoClick(ticket));
         }
     }
 }
