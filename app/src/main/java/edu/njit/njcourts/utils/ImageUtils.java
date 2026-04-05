@@ -48,7 +48,11 @@ public class ImageUtils {
         return result;
     }
 
-    private static Bitmap resizeIfNeeded(Bitmap bm) {
+    /**
+     * Resizes the bitmap to fit within MAX_WIDTH and MAX_HEIGHT while maintaining aspect ratio.
+     * Public access to allow ML validation to use optimized bitmaps.
+     */
+    public static Bitmap resizeIfNeeded(Bitmap bm) {
         int width = bm.getWidth();
         int height = bm.getHeight();
         
