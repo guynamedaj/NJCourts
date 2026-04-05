@@ -67,13 +67,14 @@ import edu.njit.njcourts.utils.ImageUtils;
 
 /**
  * Task 18, 20 & 21: Camera Integration + ML Validation + Strictness Toggle.
+ * Optimized for performance by resizing before ML validation.
  */
 public class CameraCaptureActivity extends AppCompatActivity {
 
     private static final String TAG = "CameraCapture";
     
     private PreviewView previewView;
-    private View btnCapture; // Changed to View to support FrameLayout shutter
+    private View btnCapture; 
     private ImageButton btnTestSaved;
     private ImageCapture imageCapture;
 
@@ -87,7 +88,6 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private View layoutCameraControls;
     private View overlayLoading;
     
-    // Task 21: Strictness Toggle & Info
     private SwitchMaterial switchStrictMode;
     private ImageButton btnStrictnessInfo;
     private View cardStrictness;
@@ -276,18 +276,23 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 while ((read = countStream.read(buffer)) != -1) originalSizeBytes += read;
             }
             final String originalSizeText = (originalSizeBytes / 1024) + " KB";
+            
             Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
             if (inputStream != null) inputStream.close();
             if (bitmap == null) { overlayLoading.setVisibility(View.GONE); return; }
+            
             bitmap = correctBitmapRotation(imageUri, bitmap);
-            InputImage image = InputImage.fromBitmap(bitmap, 0);
+            
+            // OPTIMIZATION: Resize before ML validation to prevent hangs/OOM on 10MB+ images
+            Bitmap resizedForML = ImageUtils.resizeIfNeeded(bitmap);
+            InputImage image = InputImage.fromBitmap(resizedForML, 0);
 
             Task<List<Face>> faceTask = faceDetector.process(image);
             Task<List<ImageLabel>> labelTask = imageLabeler.process(image);
             Task<Pose> poseTask = poseDetector.process(image);
             Task<SegmentationMask> segmentTask = selfieSegmenter.process(image);
 
-            final Bitmap finalBitmap = bitmap;
+            final Bitmap finalBitmap = bitmap; // Keep original for high-quality compression
             Tasks.whenAllComplete(faceTask, labelTask, poseTask, segmentTask).addOnCompleteListener(t -> {
                 overlayLoading.setVisibility(View.GONE);
                 btnCapture.setEnabled(true);
