@@ -7,13 +7,14 @@
     android:background="#FFFFFF"
     tools:context=".ui.TicketSelectionActivity">
 
-    <!-- Header aligned with Screenshot Colors -->
+    <!-- Standardized Header -->
     <LinearLayout
         android:id="@+id/header_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/pats_header_bg"
         android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:padding="12dp"
         app:layout_constraintTop_toTopOf="parent">
 
@@ -22,7 +23,7 @@
             android:layout_height="wrap_content"
             android:text="Ticket Selection"
             android:textColor="@color/pats_header_text"
-            android:textSize="18sp"
+            android:textSize="20sp"
             android:textStyle="bold" />
 
     </LinearLayout>
@@ -117,47 +118,18 @@
 
     </LinearLayout>
 
+    <!-- Standardized Bottom Button (Matches Review Screen) -->
     <Button
         android:id="@+id/btn_proceed"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="16dp"
         android:backgroundTint="#2E7D32"
-        android:text="TAKE PHOTO"
-        android:textColor="@android:color/white"
-        android:textSize="16sp"
+        android:padding="12dp"
+        android:text="View Evidence →"
+        android:textAllCaps="false"
+        android:textSize="20sp"
         android:textStyle="bold"
-        app:layout_constraintBottom_toTopOf="@id/bottom_nav_mock" />
-
-    <LinearLayout
-        android:id="@+id/bottom_nav_mock"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:background="#E0E0E0"
-        android:orientation="horizontal"
-        app:layout_constraintBottom_toBottomOf="parent">
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:orientation="vertical">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@android:drawable/ic_menu_edit"
-                app:tint="@color/pats_header_text" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="TICKET"
-                android:textColor="@color/pats_header_text"
-                android:textSize="10sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-    </LinearLayout>
+        app:layout_constraintBottom_toBottomOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

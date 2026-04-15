@@ -27,6 +27,7 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Entry point of the app -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true">
@@ -38,13 +39,19 @@
 
         <activity
             android:name=".ui.TicketSelectionActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.CameraCaptureActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:label="Ticket Selection" />
+
         <activity
             android:name=".ui.CaseSummaryActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:label="Evidence Dashboard" />
+
+        <activity
+            android:name=".ui.CameraCaptureActivity"
+            android:exported="false"
+            android:label="Capture Evidence" />
+
     </application>
 
 </manifest>

@@ -15,8 +15,14 @@ public interface TicketDao {
     @Query("SELECT * FROM tickets")
     LiveData<List<TicketEntity>> getAllTickets();
 
+    @Query("SELECT * FROM tickets WHERE ticketNumber = :id LIMIT 1")
+    LiveData<TicketEntity> getTicketById(String id);
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertTickets(List<TicketEntity> tickets);
+
+    @Query("SELECT COUNT(*) FROM tickets")
+    int getTicketCountSync();
     
     @Query("UPDATE tickets SET syncStatus = :status WHERE ticketNumber = :id")
     void updateSyncStatus(String id, String status);

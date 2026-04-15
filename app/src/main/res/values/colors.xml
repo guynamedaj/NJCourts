@@ -5,4 +5,14 @@
     <color name="pats_status_bar">#222E81</color>
     <color name="pats_header_bg">#D6E0EB</color>
     <color name="pats_header_text">#405E8F</color>
+
+    <!-- Camera UI Theme -->
+    <color name="camera_overlay">#99000000</color>
+    <color name="camera_button_bg">#4DFFFFFF</color>
+    <color name="camera_accent">#00E676</color>
+
+    <color name="switch_thumb_on">#00E676</color>
+    <color name="switch_thumb_off">#FF5252</color>
+    <color name="switch_track_on">#8000E676</color>
+    <color name="switch_track_off">#80FF5252</color>
 </resources>
