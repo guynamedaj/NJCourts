@@ -1,0 +1,93 @@
+================================================================================
+PARKING CITATION / PCSAM EVIDENCE REVIEW — WEB APPLICATION REQUIREMENTS
+================================================================================
+Document: requirements.txt
+Scope: React web app in this directory (npm / Vite). Mock data until API integration.
+
+--------------------------------------------------------------------------------
+1. PURPOSE
+--------------------------------------------------------------------------------
+Provide judges and staff a browser-based workflow to search parking citations,
+review full case-style ticket details, and view photo evidence in one connected
+flow. UI shall follow a professional government portal pattern (PCSAM-style:
+neutral grays, teal accents, dense label-over-value grids).
+
+--------------------------------------------------------------------------------
+2. USER ROLES
+--------------------------------------------------------------------------------
+- Judge / adjudicator: search, open cases, read details, review evidence.
+- System: preserve search context when navigating between views (see section 4).
+
+--------------------------------------------------------------------------------
+3. FUNCTIONAL REQUIREMENTS
+--------------------------------------------------------------------------------
+
+FR-01 Search (home route "/")
+  - Filters: keyword (multi-word AND across ticket, case id, plate, name,
+    violation, offense text, court, status, vehicle fields, location, officer,
+    notes, defendant address), ticket number, license plate (normalized partial
+    match), suspect name, violation type (dropdown), vehicle (make/model/color
+    text), date range (issued from / to).
+  - Results: sortable table (ticket #, date/time, suspect, plate, violation,
+    vehicle). Row activates via click or keyboard (Enter / Space).
+  - Empty state when no rows match.
+  - Clear filters control.
+
+FR-02 Ticket details (route "/ticket/:id")
+  - Load ticket by id; show not-found state if invalid.
+  - Display PCSAM-style case overview (court, case, defendant, plate/state,
+    statuses, offense, quick links, etc.).
+  - Tab strip: Case Summary (active), placeholder tabs (disabled) matching
+    portal pattern, plus working link to Photo evidence.
+  - Collapsible sections: defendant information; citation and vehicle
+    information (make, model, color, violation, date/time, location, officer,
+    notes, etc.).
+  - Navigation: back to search results; link to case search; primary path to
+    photo evidence.
+
+FR-03 Photo evidence (route "/ticket/:id")
+  - Load same ticket by id; evidence list from data layer (mock: simulated S3
+    URLs; preview images for display).
+  - Tab strip with Photo evidence active; consistent navigation back to case
+    summary and case search.
+  - Summary bar above thumbnails: vehicle, plate/state, violation (emphasized),
+    statute/offense line, date/time issued, location, defendant, citation #.
+  - Responsive grid of photos; each item shows file name, upload timestamp, S3 URL.
+  - Lightbox/modal for full-screen image; dismiss via close control, overlay
+    click, Escape.
+  - Empty state when ticket has no attachments.
+
+FR-04 Shared application state
+  - Search filters and table sort SHALL persist when user navigates to ticket
+    details or evidence and returns (React Context).
+
+FR-05 Data layer
+  - Ticket and PhotoEvidence types defined in TypeScript.
+  - Mock catalog in mockData.ts; replaceable with real API calls without
+    changing route or UI contract.
+
+--------------------------------------------------------------------------------
+4. NON-FUNCTIONAL REQUIREMENTS
+--------------------------------------------------------------------------------
+
+NFR-01 Stack: React, TypeScript, Tailwind CSS, React Router.
+NFR-02 Accessibility: semantic tables, tab roles, keyboard row activation,
+    dialog labeling for lightbox.
+NFR-03 Browser: modern evergreen browsers supported via Vite build.
+
+--------------------------------------------------------------------------------
+5. OUT OF SCOPE (CURRENT MOCK)
+--------------------------------------------------------------------------------
+- Backend authentication, real court integrations, actual S3 uploads/downloads.
+- Payment / assessed totals processing (quick link may route to evidence as stub).
+
+--------------------------------------------------------------------------------
+6. BUILD & RUN
+--------------------------------------------------------------------------------
+  npm install
+  npm run dev
+  npm run build
+
+================================================================================
+END OF REQUIREMENTS
+================================================================================
