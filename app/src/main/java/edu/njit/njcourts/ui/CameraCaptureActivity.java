@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.Bundle;
@@ -58,17 +59,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.Executors;
 
 import edu.njit.njcourts.R;
 import edu.njit.njcourts.data.AppDatabase;
 import edu.njit.njcourts.data.PhotoEvidenceEntity;
+import edu.njit.njcourts.data.TicketEntity;
 import edu.njit.njcourts.utils.ImageUtils;
 
-/**
- * Task 18, 20 & 21: Camera Integration + ML Validation + Strictness Toggle.
- * Optimized for performance by resizing before ML validation.
- */
 public class CameraCaptureActivity extends AppCompatActivity {
 
     private static final String TAG = "CameraCapture";
@@ -82,6 +81,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private ImageView imgCompressedPreview;
     private TextView textCompressionInfo;
     private TextView textOriginalInfo;
+    private TextView textVehicleInfo;
     private MaterialButton btnRetake;
     private MaterialButton btnSave;
     private View btnToggleCompare;
@@ -150,6 +150,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
         imgCompressedPreview = findViewById(R.id.img_compressed_preview);
         textCompressionInfo = findViewById(R.id.text_compression_info);
         textOriginalInfo = findViewById(R.id.text_original_info);
+        textVehicleInfo = findViewById(R.id.text_vehicle_info);
         btnRetake = findViewById(R.id.btn_retake);
         btnSave = findViewById(R.id.btn_save);
         btnToggleCompare = findViewById(R.id.btn_toggle_compare);
@@ -193,7 +194,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private void showStrictnessInfoDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("Validation Modes")
-                .setMessage("BALANCED (OFF):\nRejects image only if a face is clearly visible. Recommended for busy areas.\n\nSTRICT (ON):\nRejects image if any human element (faces, poses, body shapes) is detected. Ensures maximum evidence purity.")
+                .setMessage("BALANCED (OFF):\nRejects image only if a face is clearly visible.\n\nSTRICT (ON):\nRejects image if any human element is detected.")
                 .setPositiveButton("OK", null)
                 .show();
     }
@@ -268,9 +269,9 @@ public class CameraCaptureActivity extends AppCompatActivity {
 
     private void detectPersonWithMLKit(Uri imageUri) {
         try {
-            InputStream inputStream = getContentResolver().openInputStream(imageUri);
+            InputStream inputStream = this.getContentResolver().openInputStream(imageUri);
             long originalSizeBytes = 0;
-            try (InputStream countStream = getContentResolver().openInputStream(imageUri)) {
+            try (InputStream countStream = this.getContentResolver().openInputStream(imageUri)) {
                 byte[] buffer = new byte[8192];
                 int read;
                 while ((read = countStream.read(buffer)) != -1) originalSizeBytes += read;
@@ -283,7 +284,6 @@ public class CameraCaptureActivity extends AppCompatActivity {
             
             bitmap = correctBitmapRotation(imageUri, bitmap);
             
-            // OPTIMIZATION: Resize before ML validation to prevent hangs/OOM on 10MB+ images
             Bitmap resizedForML = ImageUtils.resizeIfNeeded(bitmap);
             InputImage image = InputImage.fromBitmap(resizedForML, 0);
 
@@ -292,7 +292,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
             Task<Pose> poseTask = poseDetector.process(image);
             Task<SegmentationMask> segmentTask = selfieSegmenter.process(image);
 
-            final Bitmap finalBitmap = bitmap; // Keep original for high-quality compression
+            final Bitmap finalBitmap = bitmap;
             Tasks.whenAllComplete(faceTask, labelTask, poseTask, segmentTask).addOnCompleteListener(t -> {
                 overlayLoading.setVisibility(View.GONE);
                 btnCapture.setEnabled(true);
@@ -302,40 +302,86 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 boolean faceDetected = faceTask.isSuccessful() && !faceTask.getResult().isEmpty();
                 boolean poseDetected = poseTask.isSuccessful() && !poseTask.getResult().getAllPoseLandmarks().isEmpty();
                 
-                boolean segmentationHit = false;
+                boolean segmentationHitLocal = false;
                 if (segmentTask.isSuccessful() && segmentTask.getResult() != null) {
                     SegmentationMask mask = segmentTask.getResult();
                     ByteBuffer buffer = mask.getBuffer();
                     float totalPixels = mask.getWidth() * mask.getHeight();
                     float personPixels = 0;
                     for (int i = 0; i < totalPixels; i++) if (buffer.getFloat() > 0.4) personPixels++;
-                    if ((personPixels / totalPixels) > 0.1) segmentationHit = true;
+                    if ((personPixels / totalPixels) > 0.1) segmentationHitLocal = true;
                 }
+                
+                final boolean finalSegmentationHit = segmentationHitLocal;
 
-                boolean labelHit = false;
-                if (labelTask.isSuccessful() && labelTask.getResult() != null) {
-                    for (ImageLabel label : labelTask.getResult()) {
-                        String txt = label.getText().toLowerCase();
-                        if (txt.contains("person") || txt.contains("human")) labelHit = true;
-                    }
-                }
+                Executors.newSingleThreadExecutor().execute(() -> {
+                    String colorName = analyzeDominantColor(finalBitmap);
 
-                boolean reject = faceDetected; 
-                String reason = "A face was detected.";
+                    runOnUiThread(() -> {
+                        boolean reject = faceDetected; 
+                        String reasonText = "A face was detected.";
 
-                if (isStrict) { 
-                    if (poseDetected) { reject = true; reason = "A human pose was detected."; }
-                    if (segmentationHit) { reject = true; reason = "Significant human-shaped area detected."; }
-                    if (labelHit) { reject = true; reason = "Image labeling identified a person."; }
-                }
+                        if (isStrict) { 
+                            if (poseDetected) { reject = true; reasonText = "A human pose was detected."; }
+                            if (finalSegmentationHit) { reject = true; reasonText = "Significant human-shaped area detected."; }
+                        }
 
-                if (reject) {
-                    showValidationError(reason);
-                } else {
-                    processValidImage(finalBitmap, originalSizeText);
-                }
+                        if (reject) {
+                            showValidationError(reasonText);
+                        } else {
+                            processValidImage(finalBitmap, originalSizeText, colorName);
+                        }
+                    });
+                });
             });
-        } catch (IOException e) { overlayLoading.setVisibility(View.GONE); }
+        } catch (IOException e) { 
+            Log.e(TAG, "Error in detectPersonWithMLKit", e);
+            overlayLoading.setVisibility(View.GONE); 
+        }
+    }
+
+    private String analyzeDominantColor(Bitmap bitmap) {
+        int w = bitmap.getWidth();
+        int h = bitmap.getHeight();
+        int[] pixels = {
+            bitmap.getPixel(w/2, h/2),
+            bitmap.getPixel(w/4, h/4),
+            bitmap.getPixel(3*w/4, h/4),
+            bitmap.getPixel(w/4, 3*h/4),
+            bitmap.getPixel(3*w/4, 3*h/4)
+        };
+        
+        long r = 0, g = 0, b = 0;
+        for (int p : pixels) {
+            r += Color.red(p);
+            g += Color.green(p);
+            b += Color.blue(p);
+        }
+        r /= 5; g /= 5; b /= 5;
+
+        // 1. Check for extreme Greys (White/Black) first
+        if (r > 200 && g > 200 && b > 200) return "White";
+        if (r < 60 && g < 60 && b < 60) return "Black";
+
+        // 2. Check for Grey (Saturation check)
+        // If the color channels are close to each other, it is likely Grey.
+        long max = Math.max(r, Math.max(g, b));
+        long min = Math.min(r, Math.min(g, b));
+        if (max - min < 30) {
+            return "Grey";
+        }
+
+        // 3. Check for specific colors with a dominance threshold
+        // A color is only dominant if it is significantly higher than the others
+        int threshold = 30;
+        if (r > g + threshold && r > b + threshold) return "Red";
+        if (g > r + threshold && g > b + threshold) return "Green";
+        if (b > r + threshold && b > g + threshold) return "Blue";
+        
+        // 4. Fallbacks for mixed colors
+        if (r > threshold && g > threshold && b < threshold) return "Yellow";
+        
+        return "Colored";
     }
 
     private void showValidationError(String message) {
@@ -351,16 +397,40 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 .setCancelable(false).show();
     }
 
-    private void processValidImage(Bitmap bitmap, String originalSizeText) {
+    private void processValidImage(Bitmap bitmap, String originalSizeText, String color) {
         clearBitmaps();
         this.originalBitmap = bitmap;
         this.latestCompressedData = ImageUtils.compressForDatabase(bitmap);
         this.compressedBitmap = BitmapFactory.decodeByteArray(latestCompressedData, 0, latestCompressedData.length);
         
-        textOriginalInfo.setText("Original: " + originalSizeText + " | Compressed: " + (latestCompressedData.length / 1024) + " KB");
+        textOriginalInfo.setText(String.format(Locale.US, "Orig: %s | Compressed: %d KB", originalSizeText, latestCompressedData.length / 1024));
+        
+        if (textVehicleInfo != null) {
+            checkAndSetVehicleMatch(color);
+            textVehicleInfo.setVisibility(View.VISIBLE);
+        }
+        
         imgCompressedPreview.setImageBitmap(compressedBitmap);
         btnSave.setEnabled(true);
         Toast.makeText(this, "Validation Successful!", Toast.LENGTH_LONG).show();
+    }
+
+    private void checkAndSetVehicleMatch(String color) {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            AppDatabase db = AppDatabase.getDatabase(getApplicationContext());
+            TicketEntity ticket = db.ticketDao().getTicketByNumber(ticketId);
+            runOnUiThread(() -> {
+                if (ticket != null && ticket.vehicleSummary != null) {
+                    String summary = ticket.vehicleSummary.toLowerCase();
+                    boolean colorMatch = summary.contains(color.toLowerCase());
+                    
+                    String status = colorMatch ? "Color Match" : "Color Mismatch";
+                    textVehicleInfo.setText(String.format(Locale.US, "Detected: %s (%s)", color, status));
+                } else {
+                    textVehicleInfo.setText(String.format(Locale.US, "Detected: %s", color));
+                }
+            });
+        });
     }
 
     private void clearBitmaps() {
@@ -369,11 +439,12 @@ public class CameraCaptureActivity extends AppCompatActivity {
         if (compressedBitmap != null) compressedBitmap.recycle();
         originalBitmap = null;
         compressedBitmap = null;
+        if (textVehicleInfo != null) textVehicleInfo.setVisibility(View.GONE);
     }
 
     private Bitmap correctBitmapRotation(Uri imageUri, Bitmap bitmap) {
         try {
-            InputStream inputStream = getContentResolver().openInputStream(imageUri);
+            InputStream inputStream = this.getContentResolver().openInputStream(imageUri);
             if (inputStream == null) return bitmap;
             ExifInterface exif = new ExifInterface(inputStream);
             inputStream.close();
