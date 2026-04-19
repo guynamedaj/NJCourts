@@ -1,9 +1,20 @@
 export interface Ticket {
   id: string
+  /** Court code; demo deployment uses 1214 */
+  courtCode: string
+  /** Prefix e.g. T01, T90, or P01–P99 */
+  ticketPrefix: string
+  /** Sequence number; begins with last two digits of issue year (e.g. 260001 for 2026) */
+  sequenceNumber: string
+  /** Full citation: "{courtCode} {ticketPrefix} {sequenceNumber}" */
   ticketNumber: string
   issuedAt: string
   officerName: string
-  suspectName: string
+  /**
+   * Defendant name when known (e.g. from registration). Parking enforcement
+   * typically cannot collect this — use "---" when unknown.
+   */
+  defendantName: string
   violationType: string
   vehicleMake: string
   vehicleModel: string
@@ -15,7 +26,7 @@ export interface Ticket {
 
   /** PCSAM-style: court line (shown in teal) */
   courtDisplay: string
-  /** Display case id e.g. P01 260001 */
+  /** Usually same as ticket number for parking citations */
   caseDisplay: string
   plateState: string
   caseType: string
@@ -51,7 +62,6 @@ export interface PhotoEvidence {
 export type SortKey =
   | 'ticketNumber'
   | 'issuedAt'
-  | 'suspectName'
   | 'licensePlate'
   | 'violationType'
   | 'vehicle'

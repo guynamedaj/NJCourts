@@ -1,27 +1,20 @@
-# NJCourts Mobile App
+# PCSAM-style parking citation evidence review (web)
 
-Android mobile prototype for the NJ Courts project. This app provides a professional interface for officers to select tickets, validate evidence using on-device ML, and manage local records.
+React app in **`web/`**: case search, case summary, photo evidence.
 
-## What it does
+**Citation numbers** are `Court code` + `Prefix` + `Sequence` (e.g. `1214 T90 260001`). Demo uses court **1214**, prefixes **T01** and **T90** (handheld device issues **1214** / **T90**). Sequences use **26** + serial for 2026 (e.g. `260001`). Defendant fields are typically unknown at issuance for parking.
 
-- **Case search** (`/`) — filters and sortable results; open a row to see details.
-- **Case summary** (`/ticket/:id`) — overview grid, tabs, collapsible defendant and citation/vehicle sections.
-- **Photo evidence** (`/ticket/:id/evidence`) — citation/vehicle summary bar, image grid, lightbox.
+## Run
 
-## Setup Instructions
+From the **repo root** (or from `web/`):
 
-## Setup Instructions
-
-### 1. Clone the repository
 ```bash
-cd web
 npm install
 npm run dev
 ```
 
-Build:
+`package.json` for the React app is under `web/`; the root `package.json` uses **npm workspaces** so `npm install` at the repo root installs dependencies for `web`.
 
-```bash
-cd web
-npm run build
-```
+Build: `npm run build` (root) or `cd web && npm run build`
+
+See `web/requirements.txt` for full requirements.

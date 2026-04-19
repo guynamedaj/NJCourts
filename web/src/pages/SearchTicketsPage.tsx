@@ -52,8 +52,8 @@ export function SearchTicketsPage() {
       <div>
         <h2 className="text-base font-bold text-black sm:text-lg">Case search</h2>
         <p className="mt-1 text-sm text-gray-600">
-          Search citations, then open a row for the full PCSAM case summary (defendant, vehicle,
-          violation, and evidence).
+          Search citations (court code 1214, prefix T01/T90, sequence 26xxxx), then open a row for
+          case summary and evidence. Defendant identity is rarely known at issuance for parking.
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export function SearchTicketsPage() {
               type="search"
               value={filters.keyword}
               onChange={(e) => setFilters({ keyword: e.target.value })}
-              placeholder="Words match ticket, case #, plate, name, offense, address, notes…"
+              placeholder="Court, prefix, sequence, plate, violation, notes…"
               className="mt-1 w-full border border-gray-400 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-[#0d9488] focus:outline-none focus:ring-1 focus:ring-[#0d9488]"
             />
           </label>
@@ -78,7 +78,7 @@ export function SearchTicketsPage() {
               type="text"
               value={filters.ticketNumber}
               onChange={(e) => setFilters({ ticketNumber: e.target.value })}
-              placeholder="e.g. PA-2024-88421"
+              placeholder="e.g. 1214 T90 260001"
               className="mt-1 w-full border border-gray-400 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-[#0d9488] focus:outline-none focus:ring-1 focus:ring-[#0d9488]"
             />
           </label>
@@ -89,15 +89,6 @@ export function SearchTicketsPage() {
               value={filters.licensePlate}
               onChange={(e) => setFilters({ licensePlate: e.target.value })}
               placeholder="Partial match OK"
-              className="mt-1 w-full border border-gray-400 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-[#0d9488] focus:outline-none focus:ring-1 focus:ring-[#0d9488]"
-            />
-          </label>
-          <label className="block text-xs font-medium text-gray-600">
-            Suspect name
-            <input
-              type="text"
-              value={filters.suspectName}
-              onChange={(e) => setFilters({ suspectName: e.target.value })}
               className="mt-1 w-full border border-gray-400 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-[#0d9488] focus:outline-none focus:ring-1 focus:ring-[#0d9488]"
             />
           </label>
@@ -190,13 +181,6 @@ export function SearchTicketsPage() {
                     onSort={setSort}
                   />
                   <SortHeader
-                    label="Suspect"
-                    column="suspectName"
-                    currentKey={sortKey}
-                    dir={sortDir}
-                    onSort={setSort}
-                  />
-                  <SortHeader
                     label="Plate"
                     column="licensePlate"
                     currentKey={sortKey}
@@ -242,7 +226,6 @@ export function SearchTicketsPage() {
                         timeStyle: 'short',
                       })}
                     </td>
-                    <td className="px-3 py-2.5 text-gray-900">{t.suspectName}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-gray-700">
                       {t.licensePlate}
                     </td>

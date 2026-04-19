@@ -51,8 +51,6 @@ export function PhotoEvidencePage() {
         <p className="px-4 py-2 text-xs text-gray-600">
           <span className="font-mono text-gray-900">{ticket.ticketNumber}</span>
           {' · '}
-          {ticket.caseDisplay}
-          {' · '}
           {photos.length} file{photos.length === 1 ? '' : 's'} · Simulated S3 objects
         </p>
       </section>
@@ -85,7 +83,7 @@ export function PhotoEvidencePage() {
             })}
           />
           <OverviewField label="Location" value={ticket.location} />
-          <OverviewField label="Defendant" value={ticket.suspectName} />
+          <OverviewField label="Defendant" value={ticket.defendantName} />
           <OverviewField label="Citation #" value={ticket.ticketNumber} />
         </div>
       </section>
@@ -94,8 +92,7 @@ export function PhotoEvidencePage() {
         <div className="border border-dashed border-gray-400 bg-white px-6 py-16 text-center">
           <p className="text-sm font-bold text-gray-900">No photos attached</p>
           <p className="mt-2 text-sm text-gray-600">
-            This citation has no evidence objects in the mock store. Try ticket PA-2024-88541 or
-            PA-2024-88421 for samples with attachments.
+            This citation has no evidence objects in the mock store.             Try citation 1214 T90 260004 or 1214 T90 260001 for samples with attachments.
           </p>
         </div>
       ) : (

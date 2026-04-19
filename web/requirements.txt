@@ -23,13 +23,16 @@ neutral grays, teal accents, dense label-over-value grids).
 --------------------------------------------------------------------------------
 
 FR-01 Search (home route "/")
-  - Filters: keyword (multi-word AND across ticket, case id, plate, name,
-    violation, offense text, court, status, vehicle fields, location, officer,
-    notes, defendant address), ticket number, license plate (normalized partial
-    match), suspect name, violation type (dropdown), vehicle (make/model/color
-    text), date range (issued from / to).
-  - Results: sortable table (ticket #, date/time, suspect, plate, violation,
-    vehicle). Row activates via click or keyboard (Enter / Space).
+  - Filters: keyword (multi-word AND across citation number, court code, prefix,
+    sequence, plate, violation, offense text, court, status, vehicle fields,
+    location, officer, notes, defendant when known), ticket number, license plate
+    (normalized partial match), violation type (dropdown), vehicle
+    (make/model/color text), date range (issued from / to).
+  - Citation number format: Court code + Prefix (e.g. T01, T90) + Sequence
+    (year prefix + serial, e.g. 260001 for 2026). Demo court 1214; device uses T90.
+  - Results: sortable table (ticket #, date/time, plate, violation, vehicle) —
+    no defendant column (parking enforcement typically does not collect defendant
+    at roadside). Row activates via click or keyboard (Enter / Space).
   - Empty state when no rows match.
   - Clear filters control.
 

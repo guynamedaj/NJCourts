@@ -1,0 +1,13 @@
+{
+  "name": "nj-web-app",
+  "private": true,
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w web",
+    "build": "npm run build -w web",
+    "lint": "npm run lint -w web",
+    "preview": "npm run preview -w web"
+  }
+}

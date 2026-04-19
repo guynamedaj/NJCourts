@@ -64,8 +64,11 @@ export function TicketDetailsPage() {
         </h2>
         <div className="grid grid-cols-2 gap-x-8 gap-y-5 px-4 py-5 lg:grid-cols-4">
           <OverviewField label="Court" value={ticket.courtDisplay} highlight />
-          <OverviewField label="Case" value={ticket.caseDisplay} />
-          <OverviewField label="Defendant name" value={ticket.suspectName} />
+          <OverviewField label="Court code" value={ticket.courtCode} />
+          <OverviewField label="Prefix" value={ticket.ticketPrefix} />
+          <OverviewField label="Sequence number" value={ticket.sequenceNumber} />
+          <OverviewField label="Citation number" value={ticket.ticketNumber} />
+          <OverviewField label="Defendant name" value={ticket.defendantName} />
           <OverviewField label="Plate number/State" value={plateNumberState(ticket)} />
           <OverviewField label="Case type" value={ticket.caseType} />
           <OverviewField label="Case status" value={ticket.caseStatus} />
@@ -117,7 +120,7 @@ export function TicketDetailsPage() {
           onOpenChange={setDefendantOpen}
         >
           <div className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
-            <OverviewField label="Name" value={ticket.suspectName} />
+            <OverviewField label="Name" value={ticket.defendantName} />
             <OverviewField label="Date of birth" value={ticket.dateOfBirth} />
             <OverviewField
               label="DL number/state"

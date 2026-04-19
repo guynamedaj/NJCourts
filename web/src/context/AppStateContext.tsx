@@ -13,7 +13,6 @@ export interface SearchFilters {
   keyword: string
   ticketNumber: string
   licensePlate: string
-  suspectName: string
   violationType: string
   vehicle: string
   dateFrom: string
@@ -24,7 +23,6 @@ const defaultFilters: SearchFilters = {
   keyword: '',
   ticketNumber: '',
   licensePlate: '',
-  suspectName: '',
   violationType: '',
   vehicle: '',
   dateFrom: '',
@@ -58,12 +56,6 @@ function ticketMatchesFilters(t: Ticket, f: SearchFilters): boolean {
     const q = normalizePlate(f.licensePlate)
     if (!normalizePlate(t.licensePlate).includes(q)) return false
   }
-  if (
-    f.suspectName &&
-    !t.suspectName.toLowerCase().includes(f.suspectName.trim().toLowerCase())
-  ) {
-    return false
-  }
   if (f.vehicle) {
     const blob = `${t.vehicleMake} ${t.vehicleModel} ${t.vehicleColor}`.toLowerCase()
     if (!blob.includes(f.vehicle.trim().toLowerCase())) return false
@@ -76,9 +68,12 @@ function ticketMatchesFilters(t: Ticket, f: SearchFilters): boolean {
       .filter(Boolean)
     const hay = [
       t.ticketNumber,
+      t.courtCode,
+      t.ticketPrefix,
+      t.sequenceNumber,
       t.caseDisplay,
       t.licensePlate,
-      t.suspectName,
+      t.defendantName,
       t.violationType,
       t.offenseDisplay,
       t.courtDisplay,
@@ -111,9 +106,6 @@ function sortTickets(list: Ticket[], key: SortKey, dir: SortDir): Ticket[] {
         break
       case 'issuedAt':
         cmp = new Date(a.issuedAt).getTime() - new Date(b.issuedAt).getTime()
-        break
-      case 'suspectName':
-        cmp = a.suspectName.localeCompare(b.suspectName)
         break
       case 'licensePlate':
         cmp = normalizePlate(a.licensePlate).localeCompare(
@@ -205,6 +197,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   )
 }
 
+/** Context hook exported alongside provider; see react-refresh/only-export-components */
+// eslint-disable-next-line react-refresh/only-export-components -- paired hook for AppStateProvider
 export function useAppState() {
   const ctx = useContext(AppStateContext)
   if (!ctx) throw new Error('useAppState must be used within AppStateProvider')
