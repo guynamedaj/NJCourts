@@ -17,6 +17,8 @@ objectDetection = "17.0.2"
 imageLabeling = "17.0.9"
 poseDetection = "18.0.0-beta5"
 segmentationSelfie = "16.0.0-beta6"
+mlkit-custom-object-detection = "17.0.2"
+pytorch = "1.13.1"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -40,6 +42,13 @@ mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", ve
 mlkit-pose-detection = { group = "com.google.mlkit", name = "pose-detection", version.ref = "poseDetection" }
 mlkit-image-labeling = { group = "com.google.mlkit", name = "image-labeling", version.ref = "imageLabeling" }
 mlkit-segmentation-selfie = { group = "com.google.mlkit", name = "segmentation-selfie", version.ref = "segmentationSelfie" }
+# Match toml key to user's desired Gradle accessor
+mlkit-od-custom = { group = "com.google.mlkit", name = "object-detection-custom", version.ref = "mlkit-custom-object-detection" }
+
+# PyTorch
+pytorch-android-lite = { group = "org.pytorch", name = "pytorch_android_lite", version.ref = "pytorch" }
+pytorch-android-torchvision-lite = { group = "org.pytorch", name = "pytorch_android_torchvision_lite", version.ref = "pytorch" }
+
 # CameraX
 camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
 camerax-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }

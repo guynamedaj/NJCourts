@@ -18,6 +18,9 @@ public interface TicketDao {
     @Query("SELECT * FROM tickets WHERE ticketNumber = :id LIMIT 1")
     LiveData<TicketEntity> getTicketById(String id);
 
+    @Query("SELECT * FROM tickets WHERE ticketNumber = :id LIMIT 1")
+    TicketEntity getTicketByNumber(String id);
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertTickets(List<TicketEntity> tickets);
 

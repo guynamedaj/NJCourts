@@ -43,16 +43,16 @@ dependencies {
 
     // Task 7: Room
     implementation(libs.room.runtime)
-    implementation(libs.object1.detection.common)
-    implementation(libs.object1.detection)
-    implementation(libs.mlkit.image.labeling)
     annotationProcessor(libs.room.compiler)
 
     // Task 10/20: ML Kit
     implementation(libs.mlkit.face.detection)
     implementation(libs.mlkit.pose.detection)
+    implementation(libs.mlkit.image.labeling)
     implementation(libs.mlkit.segmentation.selfie)
-
+    implementation(libs.object1.detection)
+    implementation(libs.object1.detection.common)
+    implementation(libs.mlkit.od.custom)
 
     // Task 14/31: Retrofit
     implementation(libs.retrofit)
@@ -67,5 +67,4 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
-
 }
