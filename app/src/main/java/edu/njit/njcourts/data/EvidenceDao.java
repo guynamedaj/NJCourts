@@ -27,4 +27,7 @@ public interface EvidenceDao {
 
     @Query("UPDATE photo_evidence SET syncStatus = :status WHERE id = :id")
     void updateSyncStatus(int id, String status);
+
+    @Query("SELECT * FROM photo_evidence WHERE ticketNumber = :ticketNum AND syncStatus != 'SYNCED'")
+    List<PhotoEvidenceEntity> getUnsyncedEvidenceSync(String ticketNum);
 }

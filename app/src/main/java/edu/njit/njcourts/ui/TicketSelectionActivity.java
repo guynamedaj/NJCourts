@@ -2,6 +2,7 @@ package edu.njit.njcourts.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -19,18 +20,34 @@ import java.util.concurrent.Executors;
 
 import edu.njit.njcourts.R;
 import edu.njit.njcourts.adapters.EvidenceAdapter;
+import edu.njit.njcourts.adapters.EvidenceItem;
+import edu.njit.njcourts.data.ApiEvidence;
+import edu.njit.njcourts.data.ApiTicket;
 import edu.njit.njcourts.data.AppDatabase;
+import edu.njit.njcourts.data.PhotoEvidenceEntity;
+import edu.njit.njcourts.data.RetrofitClient;
 import edu.njit.njcourts.data.TicketEntity;
 import edu.njit.njcourts.models.Ticket;
 import edu.njit.njcourts.utils.NetworkUtils;
 
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
 public class TicketSelectionActivity extends AppCompatActivity {
+
+    private static final String TAG = "TicketSelectionActivity";
 
     private Spinner spinnerTickets;
     private View sectionTicketDetails;
     private Button btnAttachPhoto;
     private Button btnSync;
-    private List<Ticket> demoTickets;
+    private List<Ticket> tickets;
+    private ArrayAdapter<Ticket> spinnerAdapter;
     private Ticket selectedTicket;
 
     // Inline detail TextViews
@@ -44,6 +61,9 @@ public class TicketSelectionActivity extends AppCompatActivity {
     private EvidenceAdapter evidenceAdapter;
     private AppDatabase db;
 
+    // Remote evidence cache for merging with local
+    private List<EvidenceItem> remoteItems = new ArrayList<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -52,31 +72,132 @@ public class TicketSelectionActivity extends AppCompatActivity {
         db = AppDatabase.getDatabase(this);
 
         initializeViews();
-        setupDemoData();
+
+        tickets = new ArrayList<>();
         setupSpinner();
-        syncDemoTicketsToDatabaseIfEmpty();
         setupEvidenceRecycler();
 
-        btnAttachPhoto.setOnClickListener(v -> showAttachPhotoOptions());
+        // Load demo data immediately, then try API (replaces if successful)
+        loadDemoTickets();
+        fetchTicketsFromBackend();
 
+        btnAttachPhoto.setOnClickListener(v -> showAttachPhotoOptions());
         btnSync.setOnClickListener(v -> handleSyncAttempt());
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        // Refresh evidence when returning from camera
         if (selectedTicket != null) {
             observeEvidence(selectedTicket.getTicketNumber());
         }
     }
 
-    private void syncDemoTicketsToDatabaseIfEmpty() {
+    // ── API Fetching ──────────────────────────────────────────────
+
+    private void fetchTicketsFromBackend() {
+        RetrofitClient.get().getTickets().enqueue(new Callback<List<ApiTicket>>() {
+            @Override
+            public void onResponse(Call<List<ApiTicket>> call, Response<List<ApiTicket>> response) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    Log.w(TAG, "getTickets HTTP " + response.code());
+                    return; // Keep demo data
+                }
+                populateFromApi(response.body());
+            }
+
+            @Override
+            public void onFailure(Call<List<ApiTicket>> call, Throwable t) {
+                Log.e(TAG, "getTickets failed, using demo data", t);
+            }
+        });
+    }
+
+    private void populateFromApi(List<ApiTicket> apiTickets) {
+        tickets.clear();
+        for (ApiTicket a : apiTickets) {
+            tickets.add(toDisplayTicket(a));
+        }
+        spinnerAdapter.notifyDataSetChanged();
+
+        if (!tickets.isEmpty()) {
+            spinnerTickets.setSelection(0);
+        }
+
+        // Sync tickets to Room
+        final List<TicketEntity> entities = new ArrayList<>();
+        for (ApiTicket a : apiTickets) {
+            entities.add(new TicketEntity(
+                a.ticketNumber,
+                nullSafe(a.violationType),
+                buildVehicleSummary(a),
+                "SYNCED"
+            ));
+        }
+        Executors.newSingleThreadExecutor().execute(() ->
+            db.ticketDao().insertTickets(entities)
+        );
+    }
+
+    private void loadDemoTickets() {
+        tickets.clear();
+
+        tickets.add(new Ticket.Builder()
+                .setTicketNumber("260148 - NJ | XYZ99")
+                .setLicPlate("XYZ99")
+                .setState("NJ - NEW JERSEY")
+                .setMake("FORD")
+                .setBodyType("TRUCK")
+                .setColor("WHITE")
+                .setViolation("39:4-138 FIRE HYDRANT")
+                .setViolDate("02/27/2026")
+                .setViolTime("11:45 PM")
+                .setCourtDate("03/15/2026")
+                .setCourtTime("09:30 AM")
+                .setCourtCode("1500")
+                .setStreet("HIGH ST")
+                .build());
+
+        tickets.add(new Ticket.Builder()
+                .setTicketNumber("260147 - NJ | ABC12")
+                .setLicPlate("ABC12")
+                .setState("NJ - NEW JERSEY")
+                .setMake("HONDA")
+                .setBodyType("4 DOOR")
+                .setColor("SILVER")
+                .setViolation("39:4-98 SPEEDING")
+                .setViolDate("02/26/2026")
+                .setViolTime("10:15 AM")
+                .setCourtDate("03/12/2026")
+                .setCourtTime("01:00 PM")
+                .setCourtCode("1214")
+                .setStreet("BROAD ST")
+                .build());
+
+        tickets.add(new Ticket.Builder()
+                .setTicketNumber("260146 - NJ | OUS70")
+                .setLicPlate("OUS70")
+                .setState("NJ - NEW JERSEY")
+                .setMake("ACURA")
+                .setBodyType("2 DOOR")
+                .setColor("BLUE")
+                .setViolation("19:2-3.6 PARKING PROHIBITED")
+                .setViolDate("02/25/2026")
+                .setViolTime("02:13 PM")
+                .setCourtDate("03/04/2026")
+                .setCourtTime("09:00 AM")
+                .setCourtCode("1111")
+                .setStreet("MARKET ST")
+                .build());
+
+        spinnerAdapter.notifyDataSetChanged();
+
+        // Sync demo tickets to Room if empty
         Executors.newSingleThreadExecutor().execute(() -> {
             int count = db.ticketDao().getTicketCountSync();
             if (count == 0) {
                 List<TicketEntity> entities = new ArrayList<>();
-                for (Ticket t : demoTickets) {
+                for (Ticket t : tickets) {
                     entities.add(new TicketEntity(t.getTicketNumber(), t.getViolation(),
                         t.getColor() + " " + t.getMake(), "SYNCED"));
                 }
@@ -85,13 +206,39 @@ public class TicketSelectionActivity extends AppCompatActivity {
         });
     }
 
+    private Ticket toDisplayTicket(ApiTicket a) {
+        return new Ticket.Builder()
+            .setTicketNumber(a.ticketNumber)
+            .setLicPlate(nullSafe(a.licensePlate))
+            .setState(nullSafe(a.plateState))
+            .setMake(nullSafe(a.vehicleMake))
+            .setBodyType(nullSafe(a.vehicleModel))
+            .setColor(nullSafe(a.vehicleColor))
+            .setViolation(nullSafe(a.violationType))
+            .setStreet(nullSafe(a.location))
+            .build();
+    }
+
+    private String buildVehicleSummary(ApiTicket a) {
+        StringBuilder sb = new StringBuilder();
+        if (a.vehicleColor != null) sb.append(a.vehicleColor).append(' ');
+        if (a.vehicleMake != null) sb.append(a.vehicleMake).append(' ');
+        if (a.vehicleModel != null) sb.append(a.vehicleModel);
+        return sb.toString().trim();
+    }
+
+    private static String nullSafe(String s) {
+        return s == null ? "" : s;
+    }
+
+    // ── Views ─────────────────────────────────────────────────────
+
     private void initializeViews() {
         spinnerTickets = findViewById(R.id.spinner_tickets);
         sectionTicketDetails = findViewById(R.id.section_ticket_details);
         btnAttachPhoto = findViewById(R.id.btn_attach_photo);
         btnSync = findViewById(R.id.btn_sync);
 
-        // Inline details
         textLicPlate = findViewById(R.id.text_lic_plate);
         textState = findViewById(R.id.text_state);
         textMake = findViewById(R.id.text_make);
@@ -105,86 +252,14 @@ public class TicketSelectionActivity extends AppCompatActivity {
         textCourtTime = findViewById(R.id.text_court_time);
         textCourtCode = findViewById(R.id.text_court_code);
 
-        // Evidence
         recyclerEvidence = findViewById(R.id.recycler_evidence);
         textNoPhotos = findViewById(R.id.text_no_photos);
     }
 
-    private void setupDemoData() {
-        demoTickets = new ArrayList<>();
-
-        // Highest ticket number first (last created first)
-        demoTickets.add(new Ticket.Builder()
-                .setTicketNumber("260148 - NJ | XYZ99")
-                .setLicPlate("XYZ99")
-                .setState("NJ - NEW JERSEY")
-                .setMake("FORD")
-                .setBodyType("TRUCK")
-                .setColor("WHITE")
-                .setViolation("39:4-138 FIRE HYDRANT")
-                .setViolDate("02/27/2026")
-                .setViolTime("11:45 PM")
-                .setCourtDate("03/15/2026")
-                .setCourtTime("09:30 AM")
-                .setMAppear("N")
-                .setTransferStatCode("S")
-                .setTransferDT("2026-02-27 23:55:00.000")
-                .setCourtCode("1500")
-                .setAlphaCode("R22")
-                .setSeqNum("260148")
-                .setStatusCode("I")
-                .setStreet("HIGH ST")
-                .build());
-
-        demoTickets.add(new Ticket.Builder()
-                .setTicketNumber("260147 - NJ | ABC12")
-                .setLicPlate("ABC12")
-                .setState("NJ - NEW JERSEY")
-                .setMake("HONDA")
-                .setBodyType("4 DOOR")
-                .setColor("SILVER")
-                .setViolation("39:4-98 SPEEDING")
-                .setViolDate("02/26/2026")
-                .setViolTime("10:15 AM")
-                .setCourtDate("03/12/2026")
-                .setCourtTime("01:00 PM")
-                .setMAppear("N")
-                .setTransferStatCode("S")
-                .setTransferDT("2026-02-26 10:30:18.000")
-                .setCourtCode("1214")
-                .setAlphaCode("P15")
-                .setSeqNum("260147")
-                .setStatusCode("I")
-                .setStreet("BROAD ST")
-                .build());
-
-        demoTickets.add(new Ticket.Builder()
-                .setTicketNumber("260146 - NJ | OUS70")
-                .setLicPlate("OUS70")
-                .setState("NJ - NEW JERSEY")
-                .setMake("ACURA")
-                .setBodyType("2 DOOR")
-                .setColor("BLUE")
-                .setViolation("19:2-3.6 PARKING PROHIBITED")
-                .setViolDate("02/25/2026")
-                .setViolTime("02:13 PM")
-                .setCourtDate("03/04/2026")
-                .setCourtTime("09:00 AM")
-                .setMAppear("N")
-                .setTransferStatCode("S")
-                .setTransferDT("2026-02-25 14:19:18.450")
-                .setCourtCode("1111")
-                .setAlphaCode("D88")
-                .setSeqNum("260146")
-                .setStatusCode("I")
-                .setStreet("MARKET ST")
-                .build());
-    }
-
     private void setupSpinner() {
-        ArrayAdapter<Ticket> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, demoTickets);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerTickets.setAdapter(adapter);
+        spinnerAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, tickets);
+        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerTickets.setAdapter(spinnerAdapter);
         spinnerTickets.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -206,41 +281,90 @@ public class TicketSelectionActivity extends AppCompatActivity {
         sectionTicketDetails.setVisibility(View.VISIBLE);
         btnAttachPhoto.setVisibility(View.VISIBLE);
 
-        // Vehicle details
         textLicPlate.setText("Lic Plate: " + t.getLicPlate());
         textState.setText("State: " + t.getState());
         textMake.setText("Make: " + t.getMake());
         textBodyType.setText("Body Type: " + t.getBodyType());
         textColor.setText("Color: " + t.getColor());
 
-        // Violation details
         textViolation.setText("Violation: " + t.getViolation());
         textViolDate.setText("Date: " + t.getViolDate());
         textViolTime.setText("Time: " + t.getViolTime());
         textStreet.setText("Street: " + t.getStreet());
 
-        // Court details
         textCourtDate.setText("Court Date: " + t.getCourtDate());
         textCourtTime.setText("Court Time: " + t.getCourtTime());
         textCourtCode.setText("Court Code: " + t.getCourtCode());
 
-        // Observe evidence for this ticket
+        // Load evidence (local + remote)
+        remoteItems.clear();
         observeEvidence(t.getTicketNumber());
+        fetchRemoteEvidence(t.getTicketNumber());
     }
 
+    // ── Evidence ──────────────────────────────────────────────────
+
     private void observeEvidence(String ticketNumber) {
-        db.evidenceDao().getEvidenceForTicket(ticketNumber).observe(this, evidence -> {
-            if (evidence != null && !evidence.isEmpty()) {
-                textNoPhotos.setVisibility(View.GONE);
-                recyclerEvidence.setVisibility(View.VISIBLE);
-                evidenceAdapter.setEvidenceList(evidence);
-            } else {
-                textNoPhotos.setVisibility(View.VISIBLE);
-                recyclerEvidence.setVisibility(View.GONE);
-                evidenceAdapter.setEvidenceList(new ArrayList<>());
+        db.evidenceDao().getEvidenceForTicket(ticketNumber).observe(this, localPhotos -> {
+            List<EvidenceItem> localItems = new ArrayList<>();
+            if (localPhotos != null) {
+                for (PhotoEvidenceEntity photo : localPhotos) {
+                    localItems.add(EvidenceItem.fromLocal(photo));
+                }
+            }
+            rebuildEvidenceList(localItems);
+        });
+    }
+
+    private void fetchRemoteEvidence(String ticketNumber) {
+        RetrofitClient.get().getTicketEvidence(ticketNumber).enqueue(new Callback<List<ApiEvidence>>() {
+            @Override
+            public void onResponse(Call<List<ApiEvidence>> call, Response<List<ApiEvidence>> response) {
+                remoteItems.clear();
+                if (response.isSuccessful() && response.body() != null) {
+                    for (ApiEvidence e : response.body()) {
+                        remoteItems.add(EvidenceItem.fromRemote(e));
+                    }
+                }
+                // Re-trigger local observation to merge
+                observeEvidence(ticketNumber);
+            }
+
+            @Override
+            public void onFailure(Call<List<ApiEvidence>> call, Throwable t) {
+                Log.w(TAG, "Failed to fetch remote evidence", t);
             }
         });
     }
+
+    private void rebuildEvidenceList(List<EvidenceItem> localItems) {
+        List<EvidenceItem> merged = new ArrayList<>(localItems);
+        for (EvidenceItem remote : remoteItems) {
+            boolean isDuplicate = false;
+            for (EvidenceItem local : localItems) {
+                if (local.fileName != null && local.fileName.equals(remote.fileName)
+                        && local.timestampMs == remote.timestampMs) {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+            if (!isDuplicate) {
+                merged.add(remote);
+            }
+        }
+
+        if (!merged.isEmpty()) {
+            textNoPhotos.setVisibility(View.GONE);
+            recyclerEvidence.setVisibility(View.VISIBLE);
+            evidenceAdapter.setItems(merged);
+        } else {
+            textNoPhotos.setVisibility(View.VISIBLE);
+            recyclerEvidence.setVisibility(View.GONE);
+            evidenceAdapter.setItems(new ArrayList<>());
+        }
+    }
+
+    // ── Attach Photo ──────────────────────────────────────────────
 
     private void showAttachPhotoOptions() {
         if (selectedTicket == null) {
@@ -262,8 +386,14 @@ public class TicketSelectionActivity extends AppCompatActivity {
                 .show();
     }
 
-    // Sync logic (from CaseSummaryActivity)
+    // ── Sync / Upload ─────────────────────────────────────────────
+
     private void handleSyncAttempt() {
+        if (selectedTicket == null) {
+            Toast.makeText(this, "Please select a ticket first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         NetworkUtils.NetworkType type = NetworkUtils.getNetworkType(this);
 
         if (type == NetworkUtils.NetworkType.NONE) {
@@ -286,10 +416,59 @@ public class TicketSelectionActivity extends AppCompatActivity {
     }
 
     private void startSyncProcess() {
-        new AlertDialog.Builder(this)
-                .setTitle("Cloud Sync: Work In Progress")
-                .setMessage("Local evidence validation and storage are complete.\n\nCloud Upload is scheduled for a future sprint.\n\nThank you!")
-                .setPositiveButton("Got it", null)
-                .show();
+        String ticketNumber = selectedTicket.getTicketNumber();
+
+        Executors.newSingleThreadExecutor().execute(() -> {
+            List<PhotoEvidenceEntity> unsynced = db.evidenceDao().getUnsyncedEvidenceSync(ticketNumber);
+            if (unsynced == null || unsynced.isEmpty()) {
+                runOnUiThread(() -> Toast.makeText(this,
+                    "All photos already synced!", Toast.LENGTH_SHORT).show());
+                return;
+            }
+
+            runOnUiThread(() -> Toast.makeText(this,
+                "Uploading " + unsynced.size() + " photo(s)...", Toast.LENGTH_SHORT).show());
+
+            int successCount = 0;
+            for (PhotoEvidenceEntity photo : unsynced) {
+                try {
+                    RequestBody ticketPart = RequestBody.create(
+                        MediaType.parse("text/plain"), ticketNumber);
+                    RequestBody timestampPart = RequestBody.create(
+                        MediaType.parse("text/plain"),
+                        String.valueOf(photo.timestamp));
+                    RequestBody fileBody = RequestBody.create(
+                        MediaType.parse("image/jpeg"), photo.photoBlob);
+                    MultipartBody.Part filePart = MultipartBody.Part.createFormData(
+                        "photo",
+                        photo.originalFilename != null ? photo.originalFilename : "evidence.jpg",
+                        fileBody);
+
+                    Response<ResponseBody> resp = RetrofitClient.get()
+                        .uploadPhoto(ticketPart, timestampPart, filePart)
+                        .execute();
+
+                    if (resp.isSuccessful()) {
+                        db.evidenceDao().updateSyncStatus(photo.id, "SYNCED");
+                        successCount++;
+                    } else {
+                        Log.w(TAG, "Upload failed HTTP " + resp.code());
+                        db.evidenceDao().updateSyncStatus(photo.id, "FAILED");
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Upload exception for photo " + photo.id, e);
+                    db.evidenceDao().updateSyncStatus(photo.id, "FAILED");
+                }
+            }
+
+            final int s = successCount;
+            final int total = unsynced.size();
+            runOnUiThread(() -> {
+                Toast.makeText(this,
+                    s + "/" + total + " photos uploaded successfully",
+                    Toast.LENGTH_LONG).show();
+                fetchRemoteEvidence(ticketNumber);
+            });
+        });
     }
 }

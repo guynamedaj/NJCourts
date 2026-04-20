@@ -19,6 +19,7 @@ poseDetection = "18.0.0-beta5"
 segmentationSelfie = "16.0.0-beta6"
 mlkit-custom-object-detection = "17.0.2"
 pytorch = "1.13.1"
+glide = "4.16.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -56,6 +57,7 @@ camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", vers
 camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 object1-detection-common = { group = "com.google.mlkit", name = "object-detection-common", version.ref = "objectDetectionCommon" }
 object1-detection = { group = "com.google.mlkit", name = "object-detection", version.ref = "objectDetection" }
+glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
