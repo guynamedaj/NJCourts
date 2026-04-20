@@ -55,49 +55,50 @@ const SEED_TICKETS: Ticket[] = [
   buildTicket({ id: 't-003', courtCode: DEMO_COURT, ticketPrefix: 'T01', sequenceNumber: '260003', issuedAt: '2026-03-15T16:40:00-04:00', officerName: 'Officer A. Brooks', violationType: 'Street cleaning', vehicleMake: 'Ford', vehicleModel: 'Escape', vehicleColor: 'Blue', licensePlate: 'NJ\u00b7T08\u00b74NQ', location: '88 University Ave \u2014 Alternate side', notes: 'Sweeping window active per posted schedule.' }),
   buildTicket({ id: 't-004', courtCode: DEMO_COURT, ticketPrefix: 'T90', sequenceNumber: '260004', issuedAt: '2026-03-18T11:18:00-04:00', officerName: 'Officer M. Chen', violationType: 'Handicap space', vehicleMake: 'Subaru', vehicleModel: 'Outback', vehicleColor: 'Green', licensePlate: 'NJ\u00b7P55\u00b78LM', location: 'City Hall garage, Level P1', notes: 'No placard displayed; enforcement photo sequence captured.' }),
   buildTicket({ id: 't-005', courtCode: DEMO_COURT, ticketPrefix: 'T90', sequenceNumber: '260005', issuedAt: '2026-03-19T08:52:00-04:00', officerName: 'Officer L. Nguyen', violationType: 'Bus stop', vehicleMake: 'Hyundai', vehicleModel: 'Elantra', vehicleColor: 'Black', licensePlate: 'NJ\u00b7R33\u00b79KJ', location: 'Central Ave & Ferry St', notes: 'Vehicle overlapping marked bus stop zone.' }),
+
+  // Android demo tickets — ticketNumber format must match what TicketSelectionActivity seeds.
+  buildTicket(
+    { id: 't-android-1', courtCode: '1111', ticketPrefix: 'D88', sequenceNumber: '260146', issuedAt: '2026-02-25T14:13:00-05:00', officerName: 'Officer J. Rivera', violationType: '19:2-3.6 PARKING PROHIBITED', vehicleMake: 'ACURA', vehicleModel: '2 DOOR', vehicleColor: 'BLUE', licensePlate: 'OUS70', location: 'MARKET ST', notes: 'Android demo ticket.' },
+    { ticketNumber: '260146 - NJ | OUS70', offenseDisplay: '19:2-3.6 - Parking prohibited' },
+  ),
+  buildTicket(
+    { id: 't-android-2', courtCode: '1214', ticketPrefix: 'P15', sequenceNumber: '260147', issuedAt: '2026-02-26T10:15:00-05:00', officerName: 'Officer K. Adams', violationType: '39:4-98 SPEEDING', vehicleMake: 'HONDA', vehicleModel: '4 DOOR', vehicleColor: 'SILVER', licensePlate: 'ABC12', location: 'BROAD ST', notes: 'Android demo ticket.' },
+    { ticketNumber: '260147 - NJ | ABC12', offenseDisplay: '39:4-98 - Speeding' },
+  ),
+  buildTicket(
+    { id: 't-android-3', courtCode: '1500', ticketPrefix: 'R22', sequenceNumber: '260148', issuedAt: '2026-02-27T23:45:00-05:00', officerName: 'Officer T. Ruiz', violationType: '39:4-138 FIRE HYDRANT', vehicleMake: 'FORD', vehicleModel: 'TRUCK', vehicleColor: 'WHITE', licensePlate: 'XYZ99', location: 'HIGH ST', notes: 'Android demo ticket.' },
+    { ticketNumber: '260148 - NJ | XYZ99', offenseDisplay: '39:4-138 - Fire hydrant violation' },
+  ),
 ]
 
 export async function seedIfEmpty(): Promise<void> {
-  const { rows } = await pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM tickets')
-  const count = Number(rows[0]?.count ?? '0')
-  if (count > 0) {
-    console.log(`[seed] tickets table already has ${count} rows \u2014 skipping`)
-    return
+  let added = 0
+  for (const t of SEED_TICKETS) {
+    const result = await pool.query(
+      `INSERT INTO tickets (
+        "id", "courtCode", "ticketPrefix", "sequenceNumber", "ticketNumber", "issuedAt",
+        "officerName", "defendantName", "violationType", "vehicleMake", "vehicleModel",
+        "vehicleColor", "licensePlate", "location", "notes", "courtDisplay", "caseDisplay",
+        "plateState", "caseType", "caseStatus", "offenseDisplay", "warrantStatus", "activeWarrant",
+        "timePayment", "bailStatus", "licenseSurrendered", "dateOfBirth", "dlNumber", "dlState",
+        "dlExpiration", "defendantAddress", "commercialLicense", "restrictionClass", "restrictionType"
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34
+      ) ON CONFLICT ("ticketNumber") DO NOTHING`,
+      [
+        t.id, t.courtCode, t.ticketPrefix, t.sequenceNumber, t.ticketNumber, t.issuedAt,
+        t.officerName, t.defendantName, t.violationType, t.vehicleMake, t.vehicleModel,
+        t.vehicleColor, t.licensePlate, t.location, t.notes, t.courtDisplay, t.caseDisplay,
+        t.plateState, t.caseType, t.caseStatus, t.offenseDisplay, t.warrantStatus, t.activeWarrant,
+        t.timePayment, t.bailStatus, t.licenseSurrendered, t.dateOfBirth, t.dlNumber, t.dlState,
+        t.dlExpiration, t.defendantAddress, t.commercialLicense, t.restrictionClass, t.restrictionType,
+      ],
+    )
+    if (result.rowCount && result.rowCount > 0) added++
   }
-
-  const client = await pool.connect()
-  try {
-    await client.query('BEGIN')
-
-    for (const t of SEED_TICKETS) {
-      await client.query(
-        `INSERT INTO tickets (
-          "id", "courtCode", "ticketPrefix", "sequenceNumber", "ticketNumber", "issuedAt",
-          "officerName", "defendantName", "violationType", "vehicleMake", "vehicleModel",
-          "vehicleColor", "licensePlate", "location", "notes", "courtDisplay", "caseDisplay",
-          "plateState", "caseType", "caseStatus", "offenseDisplay", "warrantStatus", "activeWarrant",
-          "timePayment", "bailStatus", "licenseSurrendered", "dateOfBirth", "dlNumber", "dlState",
-          "dlExpiration", "defendantAddress", "commercialLicense", "restrictionClass", "restrictionType"
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34
-        )`,
-        [
-          t.id, t.courtCode, t.ticketPrefix, t.sequenceNumber, t.ticketNumber, t.issuedAt,
-          t.officerName, t.defendantName, t.violationType, t.vehicleMake, t.vehicleModel,
-          t.vehicleColor, t.licensePlate, t.location, t.notes, t.courtDisplay, t.caseDisplay,
-          t.plateState, t.caseType, t.caseStatus, t.offenseDisplay, t.warrantStatus, t.activeWarrant,
-          t.timePayment, t.bailStatus, t.licenseSurrendered, t.dateOfBirth, t.dlNumber, t.dlState,
-          t.dlExpiration, t.defendantAddress, t.commercialLicense, t.restrictionClass, t.restrictionType,
-        ],
-      )
-    }
-
-    await client.query('COMMIT')
-    console.log(`[seed] inserted ${SEED_TICKETS.length} tickets (no seed evidence — upload photos via API)`)
-  } catch (err) {
-    await client.query('ROLLBACK')
-    throw err
-  } finally {
-    client.release()
+  if (added > 0) {
+    console.log(`[seed] inserted ${added} new ticket(s); ${SEED_TICKETS.length - added} already present`)
+  } else {
+    console.log(`[seed] all ${SEED_TICKETS.length} seed tickets already present \u2014 skipping`)
   }
 }

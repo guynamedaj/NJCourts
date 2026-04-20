@@ -3,6 +3,7 @@ package edu.njit.njcourts.ui;
 import android.app.Dialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.widget.AdapterView;
@@ -13,22 +14,33 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
 
 import edu.njit.njcourts.R;
+import edu.njit.njcourts.data.ApiTicket;
 import edu.njit.njcourts.data.AppDatabase;
+import edu.njit.njcourts.data.RetrofitClient;
 import edu.njit.njcourts.data.TicketEntity;
 import edu.njit.njcourts.models.Ticket;
 
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
 public class TicketSelectionActivity extends AppCompatActivity {
+
+    private static final String TAG = "TicketSelectionActivity";
+    private static final String PLACEHOLDER = "Select a Ticket";
 
     private Spinner spinnerTickets;
     private TextView textCarDescription;
     private Button btnProceed;
     private ImageButton btnShowDetails;
-    private List<Ticket> demoTickets;
+    private List<Ticket> tickets;
+    private ArrayAdapter<Ticket> spinnerAdapter;
     private Ticket selectedTicket;
 
     @Override
@@ -37,21 +49,21 @@ public class TicketSelectionActivity extends AppCompatActivity {
         setContentView(R.layout.activity_ticket_selection);
 
         initializeViews();
-        setupDemoData();
+
+        tickets = new ArrayList<>();
+        tickets.add(new Ticket.Builder().setTicketNumber(PLACEHOLDER).build());
         setupSpinner();
-        
-        // CRITICAL FIX: Only sync demo data if database is empty
-        // This prevents CASCADE delete of photos when tickets are "replaced"
-        syncDemoTicketsToDatabaseIfEmpty();
+
+        fetchTicketsFromBackend();
 
         btnShowDetails.setOnClickListener(v -> {
-            if (selectedTicket != null && !"Select a Ticket".equals(selectedTicket.getTicketNumber())) {
+            if (selectedTicket != null && !PLACEHOLDER.equals(selectedTicket.getTicketNumber())) {
                 showTicketDetailsDialog(selectedTicket);
             }
         });
 
         btnProceed.setOnClickListener(v -> {
-            if (selectedTicket != null && !"Select a Ticket".equals(selectedTicket.getTicketNumber())) {
+            if (selectedTicket != null && !PLACEHOLDER.equals(selectedTicket.getTicketNumber())) {
                 Intent intent = new Intent(this, CaseSummaryActivity.class);
                 intent.putExtra("TICKET_ID", selectedTicket.getTicketNumber());
                 startActivity(intent);
@@ -61,21 +73,73 @@ public class TicketSelectionActivity extends AppCompatActivity {
         });
     }
 
-    private void syncDemoTicketsToDatabaseIfEmpty() {
-        Executors.newSingleThreadExecutor().execute(() -> {
-            AppDatabase db = AppDatabase.getDatabase(getApplicationContext());
-            int count = db.ticketDao().getTicketCountSync();
-            if (count == 0) {
-                List<TicketEntity> entities = new ArrayList<>();
-                for (Ticket t : demoTickets) {
-                    if (!"Select a Ticket".equals(t.getTicketNumber())) {
-                        entities.add(new TicketEntity(t.getTicketNumber(), t.getViolation(), 
-                            t.getColor() + " " + t.getMake(), "SYNCED"));
-                    }
+    private void fetchTicketsFromBackend() {
+        RetrofitClient.get().getTickets().enqueue(new Callback<List<ApiTicket>>() {
+            @Override
+            public void onResponse(Call<List<ApiTicket>> call, Response<List<ApiTicket>> response) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    Log.w(TAG, "getTickets HTTP " + response.code());
+                    Toast.makeText(TicketSelectionActivity.this,
+                        "Failed to load tickets (HTTP " + response.code() + ")",
+                        Toast.LENGTH_LONG).show();
+                    return;
                 }
-                db.ticketDao().insertTickets(entities);
+                populateFromApi(response.body());
+            }
+
+            @Override
+            public void onFailure(Call<List<ApiTicket>> call, Throwable t) {
+                Log.e(TAG, "getTickets failed", t);
+                Toast.makeText(TicketSelectionActivity.this,
+                    "Could not reach server: " + t.getMessage(),
+                    Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    private void populateFromApi(List<ApiTicket> apiTickets) {
+        for (ApiTicket a : apiTickets) {
+            tickets.add(toDisplayTicket(a));
+        }
+        spinnerAdapter.notifyDataSetChanged();
+
+        final List<TicketEntity> entities = new ArrayList<>();
+        for (ApiTicket a : apiTickets) {
+            entities.add(new TicketEntity(
+                a.ticketNumber,
+                nullSafe(a.violationType),
+                buildVehicleSummary(a),
+                "SYNCED"
+            ));
+        }
+        Executors.newSingleThreadExecutor().execute(() ->
+            AppDatabase.getDatabase(getApplicationContext()).ticketDao().insertTickets(entities)
+        );
+    }
+
+    private Ticket toDisplayTicket(ApiTicket a) {
+        return new Ticket.Builder()
+            .setTicketNumber(a.ticketNumber)
+            .setLicPlate(nullSafe(a.licensePlate))
+            .setState(nullSafe(a.plateState))
+            .setMake(nullSafe(a.vehicleMake))
+            .setBodyType(nullSafe(a.vehicleModel))
+            .setColor(nullSafe(a.vehicleColor))
+            .setViolation(nullSafe(a.violationType))
+            .setStreet(nullSafe(a.location))
+            .build();
+    }
+
+    private String buildVehicleSummary(ApiTicket a) {
+        StringBuilder sb = new StringBuilder();
+        if (a.vehicleColor != null) sb.append(a.vehicleColor).append(' ');
+        if (a.vehicleMake != null) sb.append(a.vehicleMake).append(' ');
+        if (a.vehicleModel != null) sb.append(a.vehicleModel);
+        return sb.toString().trim();
+    }
+
+    private static String nullSafe(String s) {
+        return s == null ? "" : s;
     }
 
     private void initializeViews() {
@@ -85,83 +149,10 @@ public class TicketSelectionActivity extends AppCompatActivity {
         btnShowDetails = findViewById(R.id.btn_show_details);
     }
 
-    private void setupDemoData() {
-        demoTickets = new ArrayList<>();
-        
-        // Use the new Builder Pattern for better readability
-        demoTickets.add(new Ticket.Builder().setTicketNumber("Select a Ticket").build());
-
-        demoTickets.add(new Ticket.Builder()
-                .setTicketNumber("260146 - NJ | OUS70")
-                .setLicPlate("OUS70")
-                .setState("NJ - NEW JERSEY")
-                .setMake("ACURA")
-                .setBodyType("2 DOOR")
-                .setColor("BLUE")
-                .setViolation("19:2-3.6 PARKING PROHIBITED")
-                .setViolDate("02/25/2026")
-                .setViolTime("02:13 PM")
-                .setCourtDate("03/04/2026")
-                .setCourtTime("09:00 AM")
-                .setMAppear("N")
-                .setTransferStatCode("S")
-                .setTransferDT("2026-02-25 14:19:18.450")
-                .setCourtCode("1111")
-                .setAlphaCode("D88")
-                .setSeqNum("260146")
-                .setStatusCode("I")
-                .setStreet("MARKET ST")
-                .build());
-
-        demoTickets.add(new Ticket.Builder()
-                .setTicketNumber("260147 - NJ | ABC12")
-                .setLicPlate("ABC12")
-                .setState("NJ - NEW JERSEY")
-                .setMake("HONDA")
-                .setBodyType("4 DOOR")
-                .setColor("SILVER")
-                .setViolation("39:4-98 SPEEDING")
-                .setViolDate("02/26/2026")
-                .setViolTime("10:15 AM")
-                .setCourtDate("03/12/2026")
-                .setCourtTime("01:00 PM")
-                .setMAppear("N")
-                .setTransferStatCode("S")
-                .setTransferDT("2026-02-26 10:30:18.000")
-                .setCourtCode("1214")
-                .setAlphaCode("P15")
-                .setSeqNum("260147")
-                .setStatusCode("I")
-                .setStreet("BROAD ST")
-                .build());
-
-        demoTickets.add(new Ticket.Builder()
-                .setTicketNumber("260148 - NJ | XYZ99")
-                .setLicPlate("XYZ99")
-                .setState("NJ - NEW JERSEY")
-                .setMake("FORD")
-                .setBodyType("TRUCK")
-                .setColor("WHITE")
-                .setViolation("39:4-138 FIRE HYDRANT")
-                .setViolDate("02/27/2026")
-                .setViolTime("11:45 PM")
-                .setCourtDate("03/15/2026")
-                .setCourtTime("09:30 AM")
-                .setMAppear("N")
-                .setTransferStatCode("S")
-                .setTransferDT("2026-02-27 23:55:00.000")
-                .setCourtCode("1500")
-                .setAlphaCode("R22")
-                .setSeqNum("260148")
-                .setStatusCode("I")
-                .setStreet("HIGH ST")
-                .build());
-    }
-
     private void setupSpinner() {
-        ArrayAdapter<Ticket> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, demoTickets);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerTickets.setAdapter(adapter);
+        spinnerAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, tickets);
+        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerTickets.setAdapter(spinnerAdapter);
         spinnerTickets.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -174,16 +165,17 @@ public class TicketSelectionActivity extends AppCompatActivity {
     }
 
     private void updateUI(Ticket t) {
-        if ("Select a Ticket".equals(t.getTicketNumber())) {
+        if (PLACEHOLDER.equals(t.getTicketNumber())) {
             textCarDescription.setText("");
             btnShowDetails.setVisibility(View.GONE);
-            btnProceed.setText("TAKE PHOTO"); 
+            btnProceed.setText("TAKE PHOTO");
             return;
         }
         btnShowDetails.setVisibility(View.VISIBLE);
         btnProceed.setText("VIEW EVIDENCE");
-        String desc = t.getColor() + " " + t.getBodyType() + " " + t.getMake() + " on " + t.getStreet();
-        textCarDescription.setText(desc.toUpperCase());
+        String desc = nullSafe(t.getColor()) + " " + nullSafe(t.getBodyType()) + " "
+            + nullSafe(t.getMake()) + " on " + nullSafe(t.getStreet());
+        textCarDescription.setText(desc.trim().toUpperCase());
     }
 
     private void showTicketDetailsDialog(Ticket t) {
@@ -197,12 +189,19 @@ public class TicketSelectionActivity extends AppCompatActivity {
         closeBtn.setOnClickListener(v -> dialog.dismiss());
         TextView summaryText = dialog.findViewById(R.id.text_full_summary_dialog);
         StringBuilder summary = new StringBuilder();
-        summary.append("SUMMARY:\n. Lic Plate: ").append(t.getLicPlate()).append("\n. State: ").append(t.getState()).append("\n. Make: ").append(t.getMake()).append("\n. Body Type: ").append(t.getBodyType()).append("\n. Color: ").append(t.getColor()).append("\n. Violation: ").append(t.getViolation()).append("\n. Street: ").append(t.getStreet()).append("\n****************************************\nDETAILS:\n. Court Code: ").append(t.getCourtCode()).append("\n. Seq Num: ").append(t.getSeqNum()).append("\n. Status Code: ").append(t.getStatusCode());
+        summary.append("SUMMARY:\n. Lic Plate: ").append(t.getLicPlate())
+            .append("\n. State: ").append(t.getState())
+            .append("\n. Make: ").append(t.getMake())
+            .append("\n. Body Type: ").append(t.getBodyType())
+            .append("\n. Color: ").append(t.getColor())
+            .append("\n. Violation: ").append(t.getViolation())
+            .append("\n. Street: ").append(t.getStreet());
         summaryText.setText(summary.toString());
         dialog.show();
         Window window = dialog.getWindow();
         if (window != null) {
-            window.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
         }
     }
 }

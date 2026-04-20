@@ -58,6 +58,9 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
 
+    // Glide: loads remote thumbnails for backend-only evidence
+    implementation(libs.glide)
+
     // Task 18: CameraX
     implementation(libs.camerax.core)
     implementation(libs.camerax.camera2)
