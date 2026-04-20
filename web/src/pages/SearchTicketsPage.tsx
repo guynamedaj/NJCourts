@@ -1,9 +1,6 @@
 import { useNavigate } from 'react-router-dom'
-import { getDistinctViolationTypes } from '../mockData'
 import { useAppState } from '../context/AppStateContext'
 import type { SortKey } from '../types'
-
-const violationOptions = getDistinctViolationTypes()
 
 function SortHeader({
   label,
@@ -44,8 +41,18 @@ function SortHeader({
 
 export function SearchTicketsPage() {
   const navigate = useNavigate()
-  const { filters, setFilters, resetFilters, filteredTickets, sortKey, sortDir, setSort } =
-    useAppState()
+  const {
+    filters,
+    setFilters,
+    resetFilters,
+    filteredTickets,
+    sortKey,
+    sortDir,
+    setSort,
+    violationTypes,
+    loading,
+    error,
+  } = useAppState()
 
   return (
     <div className="space-y-4">
@@ -100,7 +107,7 @@ export function SearchTicketsPage() {
               className="mt-1 w-full border border-gray-400 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-[#0d9488] focus:outline-none focus:ring-1 focus:ring-[#0d9488]"
             >
               <option value="">All types</option>
-              {violationOptions.map((v) => (
+              {violationTypes.map((v) => (
                 <option key={v} value={v}>
                   {v}
                 </option>
@@ -154,7 +161,16 @@ export function SearchTicketsPage() {
             <span className="font-normal text-gray-500">({filteredTickets.length})</span>
           </p>
         </div>
-        {filteredTickets.length === 0 ? (
+        {loading ? (
+          <div className="px-6 py-16 text-center">
+            <p className="text-sm text-gray-600">Loading tickets…</p>
+          </div>
+        ) : error ? (
+          <div className="px-6 py-16 text-center">
+            <p className="text-sm font-medium text-red-700">Failed to load tickets</p>
+            <p className="mt-2 text-sm text-gray-600">{error}</p>
+          </div>
+        ) : filteredTickets.length === 0 ? (
           <div className="px-6 py-16 text-center">
             <p className="text-sm font-medium text-gray-800">No results found</p>
             <p className="mt-2 text-sm text-gray-600">

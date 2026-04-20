@@ -1,23 +1,59 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { getEvidenceForTicket, getTicketById, plateNumberState } from '../mockData'
+import { getTicket, getTicketEvidence } from '../api/client'
+import { plateNumberState } from '../mockData'
 import { Lightbox } from '../components/Lightbox'
 import { OverviewField } from '../components/OverviewField'
 import { TicketTabBar } from '../components/TicketTabBar'
-import type { PhotoEvidence } from '../types'
+import type { PhotoEvidence, Ticket } from '../types'
 
 export function PhotoEvidencePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [lightbox, setLightbox] = useState<PhotoEvidence | null>(null)
 
-  const ticket = id ? getTicketById(id) : undefined
-  const photos = id ? getEvidenceForTicket(id) : []
+  const [ticket, setTicket] = useState<Ticket | null | undefined>(undefined)
+  const [photos, setPhotos] = useState<PhotoEvidence[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!id) {
+      setTicket(null)
+      return
+    }
+    let cancelled = false
+    setTicket(undefined)
+    setError(null)
+    Promise.all([getTicket(id), getTicketEvidence(id)])
+      .then(([t, ev]) => {
+        if (cancelled) return
+        setTicket(t)
+        setPhotos(ev)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load evidence')
+          setTicket(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  if (ticket === undefined) {
+    return (
+      <div className="border border-gray-300 bg-white p-8 text-center">
+        <p className="text-sm text-gray-600">Loading evidence…</p>
+      </div>
+    )
+  }
 
   if (!ticket) {
     return (
       <div className="border border-gray-300 bg-white p-8 text-center">
         <h2 className="text-lg font-bold text-gray-900">Ticket not found</h2>
+        {error && <p className="mt-2 text-sm text-gray-600">{error}</p>}
         <button
           type="button"
           onClick={() => navigate('/')}
@@ -51,7 +87,7 @@ export function PhotoEvidencePage() {
         <p className="px-4 py-2 text-xs text-gray-600">
           <span className="font-mono text-gray-900">{ticket.ticketNumber}</span>
           {' · '}
-          {photos.length} file{photos.length === 1 ? '' : 's'} · Simulated S3 objects
+          {photos.length} file{photos.length === 1 ? '' : 's'}
         </p>
       </section>
 
@@ -92,7 +128,7 @@ export function PhotoEvidencePage() {
         <div className="border border-dashed border-gray-400 bg-white px-6 py-16 text-center">
           <p className="text-sm font-bold text-gray-900">No photos attached</p>
           <p className="mt-2 text-sm text-gray-600">
-            This citation has no evidence objects in the mock store.             Try citation 1214 T90 260004 or 1214 T90 260001 for samples with attachments.
+            This citation has no evidence uploaded yet.
           </p>
         </div>
       ) : (

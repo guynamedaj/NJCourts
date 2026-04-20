@@ -1,24 +1,58 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { getTicketById, plateNumberState } from '../mockData'
+import { getTicket } from '../api/client'
+import { plateNumberState } from '../mockData'
 import { CollapsiblePanel } from '../components/CollapsiblePanel'
 import { OverviewField } from '../components/OverviewField'
 import { TicketTabBar } from '../components/TicketTabBar'
+import type { Ticket } from '../types'
 
 export function TicketDetailsPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const ticket = id ? getTicketById(id) : undefined
 
+  const [ticket, setTicket] = useState<Ticket | null | undefined>(undefined)
+  const [error, setError] = useState<string | null>(null)
   const [defendantOpen, setDefendantOpen] = useState(true)
   const [vehicleOpen, setVehicleOpen] = useState(true)
+
+  useEffect(() => {
+    if (!id) {
+      setTicket(null)
+      return
+    }
+    let cancelled = false
+    setTicket(undefined)
+    setError(null)
+    getTicket(id)
+      .then((data) => {
+        if (!cancelled) setTicket(data)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load ticket')
+          setTicket(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  if (ticket === undefined) {
+    return (
+      <div className="border border-gray-300 bg-white p-8 text-center">
+        <p className="text-sm text-gray-600">Loading ticket…</p>
+      </div>
+    )
+  }
 
   if (!ticket) {
     return (
       <div className="border border-gray-300 bg-white p-8 text-center">
         <h2 className="text-lg font-bold text-gray-900">Ticket not found</h2>
         <p className="mt-2 text-sm text-gray-600">
-          No citation matches this reference. Return to search and select a valid row.
+          {error ?? 'No citation matches this reference. Return to search and select a valid row.'}
         </p>
         <button
           type="button"

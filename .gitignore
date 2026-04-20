@@ -1,5 +1,13 @@
 node_modules/
 web/node_modules/
+api/node_modules/
+api/dist/
+api/.env
+api/*.db
+api/*.db-journal
+api/*.db-wal
+api/*.db-shm
+api/uploads/
 
 *.iml
 .gradle/

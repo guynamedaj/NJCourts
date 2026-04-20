@@ -2,11 +2,14 @@
   "name": "nj-web-app",
   "private": true,
   "workspaces": [
-    "web"
+    "web",
+    "api"
   ],
   "scripts": {
     "dev": "npm run dev -w web",
+    "dev:api": "npm run dev -w api",
     "build": "npm run build -w web",
+    "build:api": "npm run build -w api",
     "lint": "npm run lint -w web",
     "preview": "npm run preview -w web"
   }

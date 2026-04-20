@@ -2,11 +2,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react'
-import { mockTickets } from '../mockData'
+import { getTickets } from '../api/client'
 import type { SortDir, SortKey, Ticket } from '../types'
 
 export interface SearchFilters {
@@ -137,6 +138,11 @@ interface AppStateValue {
   sortDir: SortDir
   setSort: (key: SortKey) => void
   filteredTickets: Ticket[]
+  allTickets: Ticket[]
+  violationTypes: string[]
+  loading: boolean
+  error: string | null
+  refresh: () => void
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null)
@@ -145,6 +151,31 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [filters, setFiltersState] = useState<SearchFilters>(defaultFilters)
   const [sortKey, setSortKey] = useState<SortKey>('issuedAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [allTickets, setAllTickets] = useState<Ticket[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [refreshToken, setRefreshToken] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    getTickets()
+      .then((data) => {
+        if (!cancelled) setAllTickets(data)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load tickets')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [refreshToken])
 
   const setFilters = useCallback((patch: Partial<SearchFilters>) => {
     setFiltersState((prev) => ({ ...prev, ...patch }))
@@ -152,6 +183,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const resetFilters = useCallback(() => {
     setFiltersState(defaultFilters)
+  }, [])
+
+  const refresh = useCallback(() => {
+    setRefreshToken((n) => n + 1)
   }, [])
 
   const setSort = useCallback(
@@ -167,9 +202,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   )
 
   const filteredTickets = useMemo(() => {
-    const filtered = mockTickets.filter((t) => ticketMatchesFilters(t, filters))
+    const filtered = allTickets.filter((t) => ticketMatchesFilters(t, filters))
     return sortTickets(filtered, sortKey, sortDir)
-  }, [filters, sortKey, sortDir])
+  }, [allTickets, filters, sortKey, sortDir])
+
+  const violationTypes = useMemo(() => {
+    const set = new Set(allTickets.map((t) => t.violationType))
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [allTickets])
 
   const value = useMemo(
     () => ({
@@ -180,6 +220,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       sortDir,
       setSort,
       filteredTickets,
+      allTickets,
+      violationTypes,
+      loading,
+      error,
+      refresh,
     }),
     [
       filters,
@@ -189,6 +234,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       sortDir,
       setSort,
       filteredTickets,
+      allTickets,
+      violationTypes,
+      loading,
+      error,
+      refresh,
     ],
   )
 
