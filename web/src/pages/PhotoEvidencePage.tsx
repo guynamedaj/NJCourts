@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { getTicket, getTicketEvidence } from '../api/client'
+import { getTicket, getTicketEvidence, deleteEvidence } from '../api/client'
 import { plateNumberState } from '../mockData'
 import { Lightbox } from '../components/Lightbox'
 import { OverviewField } from '../components/OverviewField'
@@ -15,6 +15,20 @@ export function PhotoEvidencePage() {
   const [ticket, setTicket] = useState<Ticket | null | undefined>(undefined)
   const [photos, setPhotos] = useState<PhotoEvidence[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  const handleDelete = async (photo: PhotoEvidence) => {
+    if (!confirm(`Delete "${photo.fileName}"? This will permanently remove it from storage.`)) return
+    setDeleting(photo.id)
+    try {
+      await deleteEvidence(photo.id)
+      setPhotos((prev) => prev.filter((p) => p.id !== photo.id))
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete photo')
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   useEffect(() => {
     if (!id) {
@@ -134,11 +148,11 @@ export function PhotoEvidencePage() {
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {photos.map((p) => (
-            <li key={p.id}>
+            <li key={p.id} className="overflow-hidden border border-gray-300 bg-white transition hover:border-[#0d9488]">
               <button
                 type="button"
                 onClick={() => setLightbox(p)}
-                className="w-full overflow-hidden border border-gray-300 bg-white text-left transition hover:border-[#0d9488] focus:outline-none focus:ring-2 focus:ring-[#0d9488] focus:ring-offset-1"
+                className="w-full text-left focus:outline-none focus:ring-2 focus:ring-[#0d9488] focus:ring-offset-1"
               >
                 <div className="aspect-[4/3] w-full overflow-hidden bg-gray-200">
                   <img
@@ -147,19 +161,27 @@ export function PhotoEvidencePage() {
                     className="h-full w-full object-cover"
                   />
                 </div>
-                <div className="border-t border-gray-100 p-3">
-                  <p className="truncate text-sm font-medium text-gray-900">{p.fileName}</p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {new Date(p.uploadTimestamp).toLocaleString(undefined, {
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    })}
-                  </p>
-                  <p className="mt-1 truncate font-mono text-[10px] text-gray-400" title={p.s3Url}>
-                    {p.s3Url}
-                  </p>
-                </div>
               </button>
+              <div className="border-t border-gray-100 p-3">
+                <p className="truncate text-sm font-medium text-gray-900">{p.fileName}</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {new Date(p.uploadTimestamp).toLocaleString(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })}
+                </p>
+                <p className="mt-1 truncate font-mono text-[10px] text-gray-400" title={p.s3Url}>
+                  {p.s3Url}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(p)}
+                  disabled={deleting === p.id}
+                  className="mt-2 border border-red-300 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                >
+                  {deleting === p.id ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
             </li>
           ))}
         </ul>

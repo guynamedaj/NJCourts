@@ -21,7 +21,7 @@ public interface TicketDao {
     @Query("SELECT * FROM tickets WHERE ticketNumber = :id LIMIT 1")
     TicketEntity getTicketByNumber(String id);
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     void insertTickets(List<TicketEntity> tickets);
 
     @Query("SELECT COUNT(*) FROM tickets")

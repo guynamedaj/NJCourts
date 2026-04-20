@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const s3Bucket = process.env.S3_BUCKET
@@ -41,5 +41,11 @@ export async function presignKey(key: string): Promise<string> {
     s3Client,
     new GetObjectCommand({ Bucket: s3Bucket, Key: key }),
     { expiresIn: PRESIGNED_URL_TTL_SECONDS },
+  )
+}
+
+export async function deletePhoto(key: string): Promise<void> {
+  await s3Client.send(
+    new DeleteObjectCommand({ Bucket: s3Bucket, Key: key }),
   )
 }

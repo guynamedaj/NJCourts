@@ -1,20 +1,47 @@
-# PCSAM-style parking citation evidence review (web)
+# NJCourts - Parking Citation Evidence Management
 
-React app in **`web/`**: case search, case summary, photo evidence.
+A full-stack system for capturing, validating, and managing parking citation photo evidence. Built as a capstone project at NJIT.
 
-**Citation numbers** are `Court code` + `Prefix` + `Sequence` (e.g. `1214 T90 260001`). Demo uses court **1214**, prefixes **T01** and **T90** (handheld device issues **1214** / **T90**). Sequences use **26** + serial for 2026 (e.g. `260001`). Defendant fields are typically unknown at issuance for parking.
+## Components
 
-## Run
+### Android App (`app/`)
+- **Photo capture** using CameraX with real-time ML Kit validation (face detection, pose estimation, person segmentation)
+- **Gallery import** with configurable validation strictness (Strict / Balanced)
+- **Local storage** via Room DB with offline support
+- **Sync** to backend API with status tracking (Not Synced / Submitted / Failed)
+- **Car color detection** using PyTorch Mobile
 
-From the **repo root** (or from `web/`):
+### Backend API (`api/`)
+- Express + TypeScript REST API
+- Neon PostgreSQL database
+- AWS S3 for photo storage with presigned URLs
+- API key authentication
+- Endpoints: ticket CRUD, photo upload, photo deletion
 
+### Web App (`web/`)
+- React + Vite + Tailwind CSS
+- PCSAM-style case search and management interface
+- Case summary, photo evidence viewer with lightbox
+- Administrative evidence deletion
+
+## Running
+
+### API
 ```bash
+cd api
+cp .env.example .env  # configure DB, S3, and API_KEY
 npm install
 npm run dev
 ```
 
-`package.json` for the React app is under `web/`; the root `package.json` uses **npm workspaces** so `npm install` at the repo root installs dependencies for `web`.
+### Web App
+```bash
+cd web
+npm install
+npm run dev
+```
+Web app runs at `http://localhost:5173` by default.
 
-Build: `npm run build` (root) or `cd web && npm run build`
+### Android App
+Open the project in Android Studio and run on an emulator or device. For emulator, the API is reached at `http://10.0.2.2:3000/api/`. For a physical device, update `ApiConstants.java` with your machine's LAN IP.
 
-See `web/requirements.txt` for full requirements.

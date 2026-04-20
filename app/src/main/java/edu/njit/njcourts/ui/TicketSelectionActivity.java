@@ -63,6 +63,8 @@ public class TicketSelectionActivity extends AppCompatActivity {
 
     // Remote evidence cache for merging with local
     private List<EvidenceItem> remoteItems = new ArrayList<>();
+    private boolean remoteItemsFetched = false;
+    private androidx.lifecycle.LiveData<List<PhotoEvidenceEntity>> currentEvidenceLiveData;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,8 +79,7 @@ public class TicketSelectionActivity extends AppCompatActivity {
         setupSpinner();
         setupEvidenceRecycler();
 
-        // Load demo data immediately, then try API (replaces if successful)
-        loadDemoTickets();
+        // Try API first; fall back to demo data only if API is unreachable
         fetchTicketsFromBackend();
 
         btnAttachPhoto.setOnClickListener(v -> showAttachPhotoOptions());
@@ -101,14 +102,16 @@ public class TicketSelectionActivity extends AppCompatActivity {
             public void onResponse(Call<List<ApiTicket>> call, Response<List<ApiTicket>> response) {
                 if (!response.isSuccessful() || response.body() == null) {
                     Log.w(TAG, "getTickets HTTP " + response.code());
-                    return; // Keep demo data
+                    loadDemoTickets();
+                    return;
                 }
                 populateFromApi(response.body());
             }
 
             @Override
             public void onFailure(Call<List<ApiTicket>> call, Throwable t) {
-                Log.e(TAG, "getTickets failed, using demo data", t);
+                Log.e(TAG, "getTickets failed, falling back to demo data", t);
+                loadDemoTickets();
             }
         });
     }
@@ -231,6 +234,10 @@ public class TicketSelectionActivity extends AppCompatActivity {
         return s == null ? "" : s;
     }
 
+    private static String fallback(String s) {
+        return (s == null || s.isEmpty()) ? "\u2014" : s;
+    }
+
     // ── Views ─────────────────────────────────────────────────────
 
     private void initializeViews() {
@@ -281,23 +288,24 @@ public class TicketSelectionActivity extends AppCompatActivity {
         sectionTicketDetails.setVisibility(View.VISIBLE);
         btnAttachPhoto.setVisibility(View.VISIBLE);
 
-        textLicPlate.setText("Lic Plate: " + t.getLicPlate());
-        textState.setText("State: " + t.getState());
-        textMake.setText("Make: " + t.getMake());
-        textBodyType.setText("Body Type: " + t.getBodyType());
-        textColor.setText("Color: " + t.getColor());
+        textLicPlate.setText("Lic Plate: " + fallback(t.getLicPlate()));
+        textState.setText("State: " + fallback(t.getState()));
+        textMake.setText("Make: " + fallback(t.getMake()));
+        textBodyType.setText("Body Type: " + fallback(t.getBodyType()));
+        textColor.setText("Color: " + fallback(t.getColor()));
 
-        textViolation.setText("Violation: " + t.getViolation());
-        textViolDate.setText("Date: " + t.getViolDate());
-        textViolTime.setText("Time: " + t.getViolTime());
-        textStreet.setText("Street: " + t.getStreet());
+        textViolation.setText("Violation: " + fallback(t.getViolation()));
+        textViolDate.setText("Date: " + fallback(t.getViolDate()));
+        textViolTime.setText("Time: " + fallback(t.getViolTime()));
+        textStreet.setText("Street: " + fallback(t.getStreet()));
 
-        textCourtDate.setText("Court Date: " + t.getCourtDate());
-        textCourtTime.setText("Court Time: " + t.getCourtTime());
-        textCourtCode.setText("Court Code: " + t.getCourtCode());
+        textCourtDate.setText("Court Date: " + fallback(t.getCourtDate()));
+        textCourtTime.setText("Court Time: " + fallback(t.getCourtTime()));
+        textCourtCode.setText("Court Code: " + fallback(t.getCourtCode()));
 
         // Load evidence (local + remote)
         remoteItems.clear();
+        remoteItemsFetched = false;
         observeEvidence(t.getTicketNumber());
         fetchRemoteEvidence(t.getTicketNumber());
     }
@@ -305,7 +313,12 @@ public class TicketSelectionActivity extends AppCompatActivity {
     // ── Evidence ──────────────────────────────────────────────────
 
     private void observeEvidence(String ticketNumber) {
-        db.evidenceDao().getEvidenceForTicket(ticketNumber).observe(this, localPhotos -> {
+        // Remove previous observer to prevent stacking
+        if (currentEvidenceLiveData != null) {
+            currentEvidenceLiveData.removeObservers(this);
+        }
+        currentEvidenceLiveData = db.evidenceDao().getEvidenceForTicket(ticketNumber);
+        currentEvidenceLiveData.observe(this, localPhotos -> {
             List<EvidenceItem> localItems = new ArrayList<>();
             if (localPhotos != null) {
                 for (PhotoEvidenceEntity photo : localPhotos) {
@@ -320,12 +333,15 @@ public class TicketSelectionActivity extends AppCompatActivity {
         RetrofitClient.get().getTicketEvidence(ticketNumber).enqueue(new Callback<List<ApiEvidence>>() {
             @Override
             public void onResponse(Call<List<ApiEvidence>> call, Response<List<ApiEvidence>> response) {
-                remoteItems.clear();
-                if (response.isSuccessful() && response.body() != null) {
-                    for (ApiEvidence e : response.body()) {
-                        remoteItems.add(EvidenceItem.fromRemote(e));
-                    }
+                if (!response.isSuccessful() || response.body() == null) {
+                    Log.w(TAG, "getTicketEvidence HTTP " + response.code());
+                    return;
                 }
+                remoteItems.clear();
+                for (ApiEvidence e : response.body()) {
+                    remoteItems.add(EvidenceItem.fromRemote(e));
+                }
+                remoteItemsFetched = true;
                 // Re-trigger local observation to merge
                 observeEvidence(ticketNumber);
             }
@@ -338,12 +354,38 @@ public class TicketSelectionActivity extends AppCompatActivity {
     }
 
     private void rebuildEvidenceList(List<EvidenceItem> localItems) {
+        // Remove local SYNCED photos that were deleted on the server.
+        // Only run when remote fetch succeeded AND returned results (or empty for real).
+        // Skip if remote fetch failed to avoid deleting everything on network errors.
+        if (remoteItemsFetched) {
+            List<PhotoEvidenceEntity> toDelete = new ArrayList<>();
+            for (EvidenceItem local : localItems) {
+                if (!"SYNCED".equals(local.syncStatus) || local.localEntity == null) continue;
+                boolean existsOnServer = false;
+                for (EvidenceItem remote : remoteItems) {
+                    if (local.fileName != null && local.fileName.equals(remote.fileName)) {
+                        existsOnServer = true;
+                        break;
+                    }
+                }
+                if (!existsOnServer) {
+                    toDelete.add(local.localEntity);
+                }
+            }
+            if (!toDelete.isEmpty()) {
+                Executors.newSingleThreadExecutor().execute(() -> {
+                    for (PhotoEvidenceEntity entity : toDelete) {
+                        db.evidenceDao().deleteEvidence(entity);
+                    }
+                });
+            }
+        }
+
         List<EvidenceItem> merged = new ArrayList<>(localItems);
         for (EvidenceItem remote : remoteItems) {
             boolean isDuplicate = false;
             for (EvidenceItem local : localItems) {
-                if (local.fileName != null && local.fileName.equals(remote.fileName)
-                        && local.timestampMs == remote.timestampMs) {
+                if (local.fileName != null && local.fileName.equals(remote.fileName)) {
                     isDuplicate = true;
                     break;
                 }
@@ -422,7 +464,7 @@ public class TicketSelectionActivity extends AppCompatActivity {
             List<PhotoEvidenceEntity> unsynced = db.evidenceDao().getUnsyncedEvidenceSync(ticketNumber);
             if (unsynced == null || unsynced.isEmpty()) {
                 runOnUiThread(() -> Toast.makeText(this,
-                    "All photos already synced!", Toast.LENGTH_SHORT).show());
+                    "No photos to sync.", Toast.LENGTH_SHORT).show());
                 return;
             }
 
@@ -434,9 +476,9 @@ public class TicketSelectionActivity extends AppCompatActivity {
                 try {
                     RequestBody ticketPart = RequestBody.create(
                         MediaType.parse("text/plain"), ticketNumber);
+                    String isoTimestamp = java.time.Instant.ofEpochMilli(photo.timestamp).toString();
                     RequestBody timestampPart = RequestBody.create(
-                        MediaType.parse("text/plain"),
-                        String.valueOf(photo.timestamp));
+                        MediaType.parse("text/plain"), isoTimestamp);
                     RequestBody fileBody = RequestBody.create(
                         MediaType.parse("image/jpeg"), photo.photoBlob);
                     MultipartBody.Part filePart = MultipartBody.Part.createFormData(

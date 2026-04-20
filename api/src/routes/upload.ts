@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express'
 import multer from 'multer'
 import { randomUUID } from 'crypto'
 import { pool } from '../db'
-import { storePhoto } from '../storage'
+import { storePhoto, deletePhoto } from '../storage'
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -83,5 +83,30 @@ uploadRouter.post('/', upload.single('photo'), async (req: Request, res: Respons
   } catch (err) {
     console.error('[upload] failed:', err)
     res.status(500).json({ error: 'Upload failed', detail: err instanceof Error ? err.message : String(err) })
+  }
+})
+
+uploadRouter.delete('/:evidenceId', async (req: Request, res: Response) => {
+  const { evidenceId } = req.params
+
+  try {
+    const query = await pool.query<{ id: string; s3Key: string }>(
+      'SELECT "id", "s3Key" FROM photo_evidence WHERE "id" = $1 LIMIT 1',
+      [evidenceId],
+    )
+    if (query.rows.length === 0) {
+      res.status(404).json({ error: 'Evidence not found' })
+      return
+    }
+
+    const { s3Key } = query.rows[0]
+
+    await deletePhoto(s3Key)
+    await pool.query('DELETE FROM photo_evidence WHERE "id" = $1', [evidenceId])
+
+    res.status(200).json({ deleted: true, id: evidenceId })
+  } catch (err) {
+    console.error('[upload] delete failed:', err)
+    res.status(500).json({ error: 'Delete failed', detail: err instanceof Error ? err.message : String(err) })
   }
 })

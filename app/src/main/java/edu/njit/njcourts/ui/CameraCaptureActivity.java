@@ -144,16 +144,29 @@ public class CameraCaptureActivity extends AppCompatActivity {
         initializeDetectors();
 
         if (galleryMode) {
-            // Gallery mode: hide camera controls, open picker immediately
+            // Gallery mode: hide camera controls, ask validation mode, then open picker
             layoutCameraControls.setVisibility(View.GONE);
             cardStrictness.setVisibility(View.GONE);
-            pickImageLauncher.launch("image/*");
+            showGalleryValidationModeDialog();
         } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED) {
             startCamera();
         } else {
             requestPermissionLauncher.launch(Manifest.permission.CAMERA);
         }
+    }
+
+    private void showGalleryValidationModeDialog() {
+        String[] modes = {"Strict (Recommended)", "Balanced"};
+        new AlertDialog.Builder(this)
+                .setTitle("Choose Validation Mode")
+                .setItems(modes, (dialog, which) -> {
+                    switchStrictMode.setChecked(which == 0);
+                    pickImageLauncher.launch("image/*");
+                })
+                .setNegativeButton("Cancel", (dialog, which) -> finish())
+                .setCancelable(false)
+                .show();
     }
 
     private void initializeViews() {
@@ -484,7 +497,9 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 case ExifInterface.ORIENTATION_ROTATE_270: matrix.postRotate(270); break;
                 default: return bitmap;
             }
-            return Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            if (rotated != bitmap) bitmap.recycle();
+            return rotated;
         } catch (Exception e) { return bitmap; }
     }
 

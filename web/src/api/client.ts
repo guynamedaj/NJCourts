@@ -1,6 +1,7 @@
 import type { PhotoEvidence, Ticket } from '../types'
 
 const baseUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000/api'
+const apiKey = (import.meta.env.VITE_API_KEY as string | undefined) ?? 'dev-local-key-change-me'
 
 export class ApiError extends Error {
   status: number
@@ -37,5 +38,15 @@ export async function getTicketEvidence(id: string): Promise<PhotoEvidence[]> {
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) return []
     throw err
+  }
+}
+
+export async function deleteEvidence(evidenceId: string): Promise<void> {
+  const res = await fetch(`${baseUrl}/upload/${encodeURIComponent(evidenceId)}`, {
+    method: 'DELETE',
+    headers: { 'x-api-key': apiKey },
+  })
+  if (!res.ok) {
+    throw new ApiError(`Delete failed: ${res.status}`, res.status)
   }
 }

@@ -89,11 +89,13 @@ public class EvidenceAdapter extends RecyclerView.Adapter<EvidenceAdapter.Eviden
                 textStatus.setText("Failed");
                 textStatus.setBackgroundColor(0xFFB71C1C);
             } else {
-                textStatus.setText("Draft");
+                textStatus.setText("Not Synced");
                 textStatus.setBackgroundColor(0xFF757575);
             }
 
-            if (item.canDelete()) {
+            // Allow deletion only for local unsynced photos (e.g. bad capture, retake).
+            // Once submitted, deletion is restricted to the web app (chain of custody).
+            if (item.canDelete() && !"SYNCED".equals(item.syncStatus)) {
                 btnDelete.setVisibility(View.VISIBLE);
                 btnDelete.setOnClickListener(v -> showDeleteConfirmation(item));
             } else {
