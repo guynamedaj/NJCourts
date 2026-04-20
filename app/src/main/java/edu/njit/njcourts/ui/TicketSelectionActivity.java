@@ -1,77 +1,84 @@
 package edu.njit.njcourts.ui;
 
-import android.app.Dialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
-import android.view.Window;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.ImageButton;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
 
 import edu.njit.njcourts.R;
+import edu.njit.njcourts.adapters.EvidenceAdapter;
 import edu.njit.njcourts.data.AppDatabase;
 import edu.njit.njcourts.data.TicketEntity;
 import edu.njit.njcourts.models.Ticket;
+import edu.njit.njcourts.utils.NetworkUtils;
 
 public class TicketSelectionActivity extends AppCompatActivity {
 
     private Spinner spinnerTickets;
-    private TextView textCarDescription;
-    private Button btnProceed;
-    private ImageButton btnShowDetails;
+    private View sectionTicketDetails;
+    private Button btnAttachPhoto;
+    private Button btnSync;
     private List<Ticket> demoTickets;
     private Ticket selectedTicket;
+
+    // Inline detail TextViews
+    private TextView textLicPlate, textState, textMake, textBodyType, textColor;
+    private TextView textViolation, textViolDate, textViolTime, textStreet;
+    private TextView textCourtDate, textCourtTime, textCourtCode;
+
+    // Evidence
+    private RecyclerView recyclerEvidence;
+    private TextView textNoPhotos;
+    private EvidenceAdapter evidenceAdapter;
+    private AppDatabase db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_ticket_selection);
 
+        db = AppDatabase.getDatabase(this);
+
         initializeViews();
         setupDemoData();
         setupSpinner();
-        
-        // CRITICAL FIX: Only sync demo data if database is empty
-        // This prevents CASCADE delete of photos when tickets are "replaced"
         syncDemoTicketsToDatabaseIfEmpty();
+        setupEvidenceRecycler();
 
-        btnShowDetails.setOnClickListener(v -> {
-            if (selectedTicket != null && !"Select a Ticket".equals(selectedTicket.getTicketNumber())) {
-                showTicketDetailsDialog(selectedTicket);
-            }
-        });
+        btnAttachPhoto.setOnClickListener(v -> showAttachPhotoOptions());
 
-        btnProceed.setOnClickListener(v -> {
-            if (selectedTicket != null && !"Select a Ticket".equals(selectedTicket.getTicketNumber())) {
-                Intent intent = new Intent(this, CaseSummaryActivity.class);
-                intent.putExtra("TICKET_ID", selectedTicket.getTicketNumber());
-                startActivity(intent);
-            } else {
-                Toast.makeText(this, "Please select a ticket", Toast.LENGTH_SHORT).show();
-            }
-        });
+        btnSync.setOnClickListener(v -> handleSyncAttempt());
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Refresh evidence when returning from camera
+        if (selectedTicket != null) {
+            observeEvidence(selectedTicket.getTicketNumber());
+        }
     }
 
     private void syncDemoTicketsToDatabaseIfEmpty() {
         Executors.newSingleThreadExecutor().execute(() -> {
-            AppDatabase db = AppDatabase.getDatabase(getApplicationContext());
             int count = db.ticketDao().getTicketCountSync();
             if (count == 0) {
                 List<TicketEntity> entities = new ArrayList<>();
                 for (Ticket t : demoTickets) {
-                    if (!"Select a Ticket".equals(t.getTicketNumber())) {
-                        entities.add(new TicketEntity(t.getTicketNumber(), t.getViolation(), 
-                            t.getColor() + " " + t.getMake(), "SYNCED"));
-                    }
+                    entities.add(new TicketEntity(t.getTicketNumber(), t.getViolation(),
+                        t.getColor() + " " + t.getMake(), "SYNCED"));
                 }
                 db.ticketDao().insertTickets(entities);
             }
@@ -80,37 +87,53 @@ public class TicketSelectionActivity extends AppCompatActivity {
 
     private void initializeViews() {
         spinnerTickets = findViewById(R.id.spinner_tickets);
-        textCarDescription = findViewById(R.id.text_car_description);
-        btnProceed = findViewById(R.id.btn_proceed);
-        btnShowDetails = findViewById(R.id.btn_show_details);
+        sectionTicketDetails = findViewById(R.id.section_ticket_details);
+        btnAttachPhoto = findViewById(R.id.btn_attach_photo);
+        btnSync = findViewById(R.id.btn_sync);
+
+        // Inline details
+        textLicPlate = findViewById(R.id.text_lic_plate);
+        textState = findViewById(R.id.text_state);
+        textMake = findViewById(R.id.text_make);
+        textBodyType = findViewById(R.id.text_body_type);
+        textColor = findViewById(R.id.text_color);
+        textViolation = findViewById(R.id.text_violation);
+        textViolDate = findViewById(R.id.text_viol_date);
+        textViolTime = findViewById(R.id.text_viol_time);
+        textStreet = findViewById(R.id.text_street);
+        textCourtDate = findViewById(R.id.text_court_date);
+        textCourtTime = findViewById(R.id.text_court_time);
+        textCourtCode = findViewById(R.id.text_court_code);
+
+        // Evidence
+        recyclerEvidence = findViewById(R.id.recycler_evidence);
+        textNoPhotos = findViewById(R.id.text_no_photos);
     }
 
     private void setupDemoData() {
         demoTickets = new ArrayList<>();
-        
-        // Use the new Builder Pattern for better readability
-        demoTickets.add(new Ticket.Builder().setTicketNumber("Select a Ticket").build());
 
+        // Highest ticket number first (last created first)
         demoTickets.add(new Ticket.Builder()
-                .setTicketNumber("260146 - NJ | OUS70")
-                .setLicPlate("OUS70")
+                .setTicketNumber("260148 - NJ | XYZ99")
+                .setLicPlate("XYZ99")
                 .setState("NJ - NEW JERSEY")
-                .setMake("ACURA")
-                .setBodyType("2 DOOR")
-                .setColor("BLUE")
-                .setViolation("19:2-3.6 PARKING PROHIBITED")
-                .setViolDate("02/25/2026")
-                .setViolTime("02:13 PM")
-                .setCourtDate("03/04/2026")
-                .setCourtTime("09:00 AM")
+                .setMake("FORD")
+                .setBodyType("TRUCK")
+                .setColor("WHITE")
+                .setViolation("39:4-138 FIRE HYDRANT")
+                .setViolDate("02/27/2026")
+                .setViolTime("11:45 PM")
+                .setCourtDate("03/15/2026")
+                .setCourtTime("09:30 AM")
                 .setMAppear("N")
                 .setTransferStatCode("S")
-                .setTransferDT("2026-02-25 14:19:18.450")
-                .setCourtCode("1111")
-                .setAlphaCode("D88")
-                .setSeqNum("260146")
+                .setTransferDT("2026-02-27 23:55:00.000")
+                .setCourtCode("1500")
+                .setAlphaCode("R22")
+                .setSeqNum("260148")
                 .setStatusCode("I")
-                .setStreet("MARKET ST")
+                .setStreet("HIGH ST")
                 .build());
 
         demoTickets.add(new Ticket.Builder()
@@ -136,25 +159,25 @@ public class TicketSelectionActivity extends AppCompatActivity {
                 .build());
 
         demoTickets.add(new Ticket.Builder()
-                .setTicketNumber("260148 - NJ | XYZ99")
-                .setLicPlate("XYZ99")
+                .setTicketNumber("260146 - NJ | OUS70")
+                .setLicPlate("OUS70")
                 .setState("NJ - NEW JERSEY")
-                .setMake("FORD")
-                .setBodyType("TRUCK")
-                .setColor("WHITE")
-                .setViolation("39:4-138 FIRE HYDRANT")
-                .setViolDate("02/27/2026")
-                .setViolTime("11:45 PM")
-                .setCourtDate("03/15/2026")
-                .setCourtTime("09:30 AM")
+                .setMake("ACURA")
+                .setBodyType("2 DOOR")
+                .setColor("BLUE")
+                .setViolation("19:2-3.6 PARKING PROHIBITED")
+                .setViolDate("02/25/2026")
+                .setViolTime("02:13 PM")
+                .setCourtDate("03/04/2026")
+                .setCourtTime("09:00 AM")
                 .setMAppear("N")
                 .setTransferStatCode("S")
-                .setTransferDT("2026-02-27 23:55:00.000")
-                .setCourtCode("1500")
-                .setAlphaCode("R22")
-                .setSeqNum("260148")
+                .setTransferDT("2026-02-25 14:19:18.450")
+                .setCourtCode("1111")
+                .setAlphaCode("D88")
+                .setSeqNum("260146")
                 .setStatusCode("I")
-                .setStreet("HIGH ST")
+                .setStreet("MARKET ST")
                 .build());
     }
 
@@ -173,36 +196,100 @@ public class TicketSelectionActivity extends AppCompatActivity {
         });
     }
 
-    private void updateUI(Ticket t) {
-        if ("Select a Ticket".equals(t.getTicketNumber())) {
-            textCarDescription.setText("");
-            btnShowDetails.setVisibility(View.GONE);
-            btnProceed.setText("TAKE PHOTO"); 
-            return;
-        }
-        btnShowDetails.setVisibility(View.VISIBLE);
-        btnProceed.setText("VIEW EVIDENCE");
-        String desc = t.getColor() + " " + t.getBodyType() + " " + t.getMake() + " on " + t.getStreet();
-        textCarDescription.setText(desc.toUpperCase());
+    private void setupEvidenceRecycler() {
+        recyclerEvidence.setLayoutManager(new GridLayoutManager(this, 2));
+        evidenceAdapter = new EvidenceAdapter();
+        recyclerEvidence.setAdapter(evidenceAdapter);
     }
 
-    private void showTicketDetailsDialog(Ticket t) {
-        final Dialog dialog = new Dialog(this);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setContentView(R.layout.dialog_ticket_details);
-        dialog.setCancelable(true);
-        TextView title = dialog.findViewById(R.id.text_dialog_title);
-        title.setText("Ticket # " + t.getTicketNumber());
-        ImageButton closeBtn = dialog.findViewById(R.id.btn_close_dialog);
-        closeBtn.setOnClickListener(v -> dialog.dismiss());
-        TextView summaryText = dialog.findViewById(R.id.text_full_summary_dialog);
-        StringBuilder summary = new StringBuilder();
-        summary.append("SUMMARY:\n. Lic Plate: ").append(t.getLicPlate()).append("\n. State: ").append(t.getState()).append("\n. Make: ").append(t.getMake()).append("\n. Body Type: ").append(t.getBodyType()).append("\n. Color: ").append(t.getColor()).append("\n. Violation: ").append(t.getViolation()).append("\n. Street: ").append(t.getStreet()).append("\n****************************************\nDETAILS:\n. Court Code: ").append(t.getCourtCode()).append("\n. Seq Num: ").append(t.getSeqNum()).append("\n. Status Code: ").append(t.getStatusCode());
-        summaryText.setText(summary.toString());
-        dialog.show();
-        Window window = dialog.getWindow();
-        if (window != null) {
-            window.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+    private void updateUI(Ticket t) {
+        sectionTicketDetails.setVisibility(View.VISIBLE);
+        btnAttachPhoto.setVisibility(View.VISIBLE);
+
+        // Vehicle details
+        textLicPlate.setText("Lic Plate: " + t.getLicPlate());
+        textState.setText("State: " + t.getState());
+        textMake.setText("Make: " + t.getMake());
+        textBodyType.setText("Body Type: " + t.getBodyType());
+        textColor.setText("Color: " + t.getColor());
+
+        // Violation details
+        textViolation.setText("Violation: " + t.getViolation());
+        textViolDate.setText("Date: " + t.getViolDate());
+        textViolTime.setText("Time: " + t.getViolTime());
+        textStreet.setText("Street: " + t.getStreet());
+
+        // Court details
+        textCourtDate.setText("Court Date: " + t.getCourtDate());
+        textCourtTime.setText("Court Time: " + t.getCourtTime());
+        textCourtCode.setText("Court Code: " + t.getCourtCode());
+
+        // Observe evidence for this ticket
+        observeEvidence(t.getTicketNumber());
+    }
+
+    private void observeEvidence(String ticketNumber) {
+        db.evidenceDao().getEvidenceForTicket(ticketNumber).observe(this, evidence -> {
+            if (evidence != null && !evidence.isEmpty()) {
+                textNoPhotos.setVisibility(View.GONE);
+                recyclerEvidence.setVisibility(View.VISIBLE);
+                evidenceAdapter.setEvidenceList(evidence);
+            } else {
+                textNoPhotos.setVisibility(View.VISIBLE);
+                recyclerEvidence.setVisibility(View.GONE);
+                evidenceAdapter.setEvidenceList(new ArrayList<>());
+            }
+        });
+    }
+
+    private void showAttachPhotoOptions() {
+        if (selectedTicket == null) {
+            Toast.makeText(this, "Please select a ticket first", Toast.LENGTH_SHORT).show();
+            return;
         }
+
+        String[] options = {"Take a Photo", "Select from Gallery"};
+        new AlertDialog.Builder(this)
+                .setTitle("Attach Photo Evidence")
+                .setItems(options, (dialog, which) -> {
+                    Intent intent = new Intent(this, CameraCaptureActivity.class);
+                    intent.putExtra("TICKET_ID", selectedTicket.getTicketNumber());
+                    if (which == 1) {
+                        intent.putExtra("GALLERY_MODE", true);
+                    }
+                    startActivity(intent);
+                })
+                .show();
+    }
+
+    // Sync logic (from CaseSummaryActivity)
+    private void handleSyncAttempt() {
+        NetworkUtils.NetworkType type = NetworkUtils.getNetworkType(this);
+
+        if (type == NetworkUtils.NetworkType.NONE) {
+            Toast.makeText(this, "No internet connection. Please connect and try again.", Toast.LENGTH_LONG).show();
+        } else if (type == NetworkUtils.NetworkType.MOBILE_DATA) {
+            showMobileDataWarning();
+        } else {
+            startSyncProcess();
+        }
+    }
+
+    private void showMobileDataWarning() {
+        new AlertDialog.Builder(this)
+                .setTitle("Mobile Data Warning")
+                .setMessage("You are currently using mobile data. Syncing photos may incur additional charges from your carrier. Would you like to proceed or wait for Wi-Fi?")
+                .setPositiveButton("Sync Now", (dialog, which) -> startSyncProcess())
+                .setNegativeButton("Wait for Wi-Fi", null)
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show();
+    }
+
+    private void startSyncProcess() {
+        new AlertDialog.Builder(this)
+                .setTitle("Cloud Sync: Work In Progress")
+                .setMessage("Local evidence validation and storage are complete.\n\nCloud Upload is scheduled for a future sprint.\n\nThank you!")
+                .setPositiveButton("Got it", null)
+                .show();
     }
 }

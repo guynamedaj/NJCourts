@@ -75,8 +75,25 @@ public class EvidenceAdapter extends RecyclerView.Adapter<EvidenceAdapter.Eviden
                 textStatus.setBackgroundColor(0xFF757575); // Grey
             }
 
+            // Tap thumbnail to view full image
+            imgThumbnail.setOnClickListener(v -> showFullImage(entity));
+
             // Task 27: Explicit Delete Button
             btnDelete.setOnClickListener(v -> showDeleteConfirmation(entity));
+        }
+
+        private void showFullImage(PhotoEvidenceEntity entity) {
+            if (entity.photoBlob == null) return;
+            Bitmap bitmap = BitmapFactory.decodeByteArray(entity.photoBlob, 0, entity.photoBlob.length);
+            ImageView imageView = new ImageView(itemView.getContext());
+            imageView.setImageBitmap(bitmap);
+            imageView.setAdjustViewBounds(true);
+            imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            new AlertDialog.Builder(itemView.getContext())
+                    .setTitle("Photo Evidence")
+                    .setView(imageView)
+                    .setPositiveButton("Close", null)
+                    .show();
         }
 
         private void showDeleteConfirmation(PhotoEvidenceEntity entity) {
