@@ -1,12 +1,12 @@
 package edu.njit.njcourts.ui;
 
 import android.Manifest;
-import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -45,6 +45,10 @@ import com.google.mlkit.vision.label.ImageLabel;
 import com.google.mlkit.vision.label.ImageLabeling;
 import com.google.mlkit.vision.label.ImageLabeler;
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions;
+import com.google.mlkit.vision.objects.DetectedObject;
+import com.google.mlkit.vision.objects.ObjectDetection;
+import com.google.mlkit.vision.objects.ObjectDetector;
+import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions;
 import com.google.mlkit.vision.pose.Pose;
 import com.google.mlkit.vision.pose.PoseDetection;
 import com.google.mlkit.vision.pose.PoseDetector;
@@ -58,8 +62,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.Executors;
 
 import edu.njit.njcourts.R;
@@ -103,6 +110,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private ImageLabeler imageLabeler;
     private PoseDetector poseDetector;
     private Segmenter selfieSegmenter;
+    private ObjectDetector objectDetector;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
@@ -121,7 +129,6 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 if (uri != null) {
                     detectWithLoading(uri);
                 } else if (galleryMode) {
-                    // User cancelled the gallery picker — go back to ticket screen
                     finish();
                 }
             });
@@ -144,7 +151,6 @@ public class CameraCaptureActivity extends AppCompatActivity {
         initializeDetectors();
 
         if (galleryMode) {
-            // Gallery mode: hide camera controls, ask validation mode, then open picker
             layoutCameraControls.setVisibility(View.GONE);
             cardStrictness.setVisibility(View.GONE);
             showGalleryValidationModeDialog();
@@ -254,6 +260,11 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 .setDetectorMode(PoseDetectorOptions.SINGLE_IMAGE_MODE).build());
         selfieSegmenter = Segmentation.getClient(new SelfieSegmenterOptions.Builder()
                 .setDetectorMode(SelfieSegmenterOptions.SINGLE_IMAGE_MODE).build());
+        objectDetector = ObjectDetection.getClient(new ObjectDetectorOptions.Builder()
+                .setDetectorMode(ObjectDetectorOptions.SINGLE_IMAGE_MODE)
+                .enableMultipleObjects()
+                .enableClassification()
+                .build());
     }
 
     private void startCamera() {
@@ -324,9 +335,10 @@ public class CameraCaptureActivity extends AppCompatActivity {
             Task<List<ImageLabel>> labelTask = imageLabeler.process(image);
             Task<Pose> poseTask = poseDetector.process(image);
             Task<SegmentationMask> segmentTask = selfieSegmenter.process(image);
+            Task<List<DetectedObject>> objectTask = objectDetector.process(image);
 
             final Bitmap finalBitmap = bitmap;
-            Tasks.whenAllComplete(faceTask, labelTask, poseTask, segmentTask).addOnCompleteListener(t -> {
+            Tasks.whenAllComplete(faceTask, labelTask, poseTask, segmentTask, objectTask).addOnCompleteListener(t -> {
                 overlayLoading.setVisibility(View.GONE);
                 btnCapture.setEnabled(true);
 
@@ -345,9 +357,19 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 }
                 
                 final boolean finalSegmentationHit = segmentationHitLocal;
+                
+                Rect carBox = null;
+                if (objectTask.isSuccessful() && objectTask.getResult() != null) {
+                    for (DetectedObject obj : objectTask.getResult()) {
+                        carBox = obj.getBoundingBox();
+                        break; // Grab largest object
+                    }
+                }
+                
+                final Rect finalCarBox = carBox;
 
                 Executors.newSingleThreadExecutor().execute(() -> {
-                    String colorName = analyzeDominantColor(finalBitmap);
+                    String colorName = analyzeDominantColor(finalBitmap, finalCarBox);
 
                     runOnUiThread(() -> {
                         boolean reject = faceDetected;
@@ -374,48 +396,86 @@ public class CameraCaptureActivity extends AppCompatActivity {
         }
     }
 
-    private String analyzeDominantColor(Bitmap bitmap) {
+    /**
+     * Final robust color analysis using targeted area sampling and dynamic thresholds.
+     */
+    private String analyzeDominantColor(Bitmap bitmap, Rect carBox) {
         int w = bitmap.getWidth();
         int h = bitmap.getHeight();
-        int[] pixels = {
-            bitmap.getPixel(w/2, h/2),
-            bitmap.getPixel(w/4, h/4),
-            bitmap.getPixel(3*w/4, h/4),
-            bitmap.getPixel(w/4, 3*h/4),
-            bitmap.getPixel(3*w/4, 3*h/4)
-        };
+
+        int startX, endX, startY, endY;
         
-        long r = 0, g = 0, b = 0;
-        for (int p : pixels) {
-            r += Color.red(p);
-            g += Color.green(p);
-            b += Color.blue(p);
-        }
-        r /= 5; g /= 5; b /= 5;
-
-        // 1. Check for extreme Greys (White/Black) first
-        if (r > 200 && g > 200 && b > 200) return "White";
-        if (r < 60 && g < 60 && b < 60) return "Black";
-
-        // 2. Check for Grey (Saturation check)
-        // If the color channels are close to each other, it is likely Grey.
-        long max = Math.max(r, Math.max(g, b));
-        long min = Math.min(r, Math.min(g, b));
-        if (max - min < 30) {
-            return "Grey";
+        if (carBox != null) {
+            // Focus on the core of the vehicle (avoid windows, tires, road)
+            int insetX = carBox.width() / 4;
+            int insetY = carBox.height() / 4;
+            startX = Math.max(0, carBox.left + insetX);
+            endX = Math.min(w - 1, carBox.right - insetX);
+            startY = Math.max(0, carBox.top + insetY);
+            endY = Math.min(h - 1, carBox.bottom - insetY);
+        } else {
+            // Fallback: middle 30% area
+            startX = w * 35 / 100;
+            endX = w * 65 / 100;
+            startY = h * 40 / 100;
+            endY = h * 70 / 100;
         }
 
-        // 3. Check for specific colors with a dominance threshold
-        // A color is only dominant if it is significantly higher than the others
-        int threshold = 30;
-        if (r > g + threshold && r > b + threshold) return "Red";
-        if (g > r + threshold && g > b + threshold) return "Green";
-        if (b > r + threshold && b > g + threshold) return "Blue";
+        Map<String, Integer> votes = new HashMap<>();
+        String[] colorLabels = {"White", "Black", "Grey", "Red", "Blue", "Green", "Yellow", "Orange", "Purple"};
+        for (String c : colorLabels) votes.put(c, 0);
+
+        float[] hsv = new float[3];
+        int pixelsAnalyzed = 0;
+        int step = Math.max(2, (endX - startX) / 30); // Higher density sampling
+
+        for (int x = startX; x < endX; x += step) {
+            for (int y = startY; y < endY; y += step) {
+                if (x < 0 || x >= w || y < 0 || y >= h) continue;
+                
+                int p = bitmap.getPixel(x, y);
+                Color.colorToHSV(p, hsv);
+                float k = hsv[0];
+                float s = hsv[1];
+                float v = hsv[2];
+
+                pixelsAnalyzed++;
+
+                // 1. Black (Tight threshold for paint, ignoring deep shadows)
+                if (v < 0.15) {
+                    votes.put("Black", votes.get("Black") + 1);
+                } 
+                // 2. Neutral Path (Most common car colors: White, Grey, Silver)
+                else if (s < 0.22) {
+                    // Optimized White threshold: inclusive for shadows on white paint
+                    if (v > 0.58) votes.put("White", votes.get("White") + 1);
+                    else votes.put("Grey", votes.get("Grey") + 1);
+                } 
+                // 3. Saturated Colors Path
+                else {
+                    if (k < 15 || k > 345) votes.put("Red", votes.get("Red") + 1);
+                    else if (k < 45) votes.put("Orange", votes.get("Orange") + 1);
+                    else if (k < 75) votes.put("Yellow", votes.get("Yellow") + 1);
+                    else if (k < 160) votes.put("Green", votes.get("Green") + 1);
+                    else if (k < 265) votes.put("Blue", votes.get("Blue") + 1);
+                    else votes.put("Purple", votes.get("Purple") + 1);
+                }
+            }
+        }
+
+        if (pixelsAnalyzed == 0) return "White";
+
+        String winner = "White";
+        int maxVotes = -1;
+        for (Map.Entry<String, Integer> entry : votes.entrySet()) {
+            if (entry.getValue() > maxVotes) {
+                maxVotes = entry.getValue();
+                winner = entry.getKey();
+            }
+        }
         
-        // 4. Fallbacks for mixed colors
-        if (r > threshold && g > threshold && b < threshold) return "Yellow";
-        
-        return "Colored";
+        Log.d(TAG, "Robust winner: " + winner + " (Votes: " + maxVotes + "/" + pixelsAnalyzed + ")");
+        return winner;
     }
 
     private void showValidationError(String message, String mode) {
@@ -456,15 +516,39 @@ public class CameraCaptureActivity extends AppCompatActivity {
     }
 
     private void checkAndSetVehicleMatch(String color) {
+        Map<String, List<String>> synonyms = new HashMap<>();
+        synonyms.put("Grey", Arrays.asList("grey", "gray", "silver", "metallic", "charcoal", "pewter", "platinum", "steel", "slate", "alum", "tungsten", "white")); // White included as loose match for Grey
+        synonyms.put("White", Arrays.asList("white", "pearl", "ivory", "cream", "frost", "snow", "alpina", "oxford", "grey", "silver")); // Grey/Silver included as loose match for White
+        synonyms.put("Black", Arrays.asList("black", "midnight", "obsidian", "dark", "onyx", "jet", "nero", "phantom"));
+        synonyms.put("Red", Arrays.asList("red", "maroon", "burgundy", "crimson", "scarlet", "cherry", "ruby", "wine"));
+        synonyms.put("Blue", Arrays.asList("blue", "navy", "cyan", "azure", "teal", "indigo", "cobalt", "sky", "deep"));
+        synonyms.put("Yellow", Arrays.asList("yellow", "gold", "tan", "beige", "bronze", "copper", "sand", "khaki", "champagne"));
+        synonyms.put("Green", Arrays.asList("green", "olive", "emerald", "forest", "lime", "mint"));
+        synonyms.put("Orange", Arrays.asList("orange", "amber", "tangerine", "rust", "sunset"));
+        synonyms.put("Purple", Arrays.asList("purple", "violet", "plum", "magenta", "lavender"));
+
         Executors.newSingleThreadExecutor().execute(() -> {
             AppDatabase db = AppDatabase.getDatabase(getApplicationContext());
             TicketEntity ticket = db.ticketDao().getTicketByNumber(ticketId);
             runOnUiThread(() -> {
                 if (ticket != null && ticket.vehicleSummary != null) {
                     String summary = ticket.vehicleSummary.toLowerCase();
-                    boolean colorMatch = summary.contains(color.toLowerCase());
+                    String detectedKey = color; 
                     
-                    String status = colorMatch ? "Color Match" : "Color Mismatch";
+                    boolean matchFound = false;
+                    List<String> validWords = synonyms.get(detectedKey);
+                    if (validWords != null) {
+                        for (String word : validWords) {
+                            if (summary.contains(word.toLowerCase())) {
+                                matchFound = true;
+                                break;
+                            }
+                        }
+                    } else if (summary.contains(detectedKey.toLowerCase())) {
+                        matchFound = true;
+                    }
+                    
+                    String status = matchFound ? "Vehicle Match" : "Vehicle Details Mismatch";
                     textVehicleInfo.setText(String.format(Locale.US, "Detected: %s (%s)", color, status));
                 } else {
                     textVehicleInfo.setText(String.format(Locale.US, "Detected: %s", color));
@@ -511,5 +595,6 @@ public class CameraCaptureActivity extends AppCompatActivity {
         if (imageLabeler != null) imageLabeler.close();
         if (poseDetector != null) poseDetector.close();
         if (selfieSegmenter != null) selfieSegmenter.close();
+        if (objectDetector != null) objectDetector.close();
     }
 }
