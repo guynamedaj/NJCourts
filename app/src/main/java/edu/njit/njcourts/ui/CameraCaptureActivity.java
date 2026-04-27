@@ -73,8 +73,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private static final String TAG = "CameraCapture";
     
     private PreviewView previewView;
-    private View btnCapture; 
-    private ImageButton btnTestSaved;
+    private View btnCapture;
     private ImageCapture imageCapture;
 
     private View containerPreview;
@@ -87,6 +86,9 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private View btnToggleCompare;
     private View layoutCameraControls;
     private View overlayLoading;
+    private TextView textValidationStatus;
+    private View layoutPreviewButtons;
+    private View layoutDebugInfo;
     
     private SwitchMaterial switchStrictMode;
     private ImageButton btnStrictnessInfo;
@@ -112,10 +114,15 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 }
             });
 
+    private boolean galleryMode;
+
     private final ActivityResultLauncher<String> pickImageLauncher =
             registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
                 if (uri != null) {
                     detectWithLoading(uri);
+                } else if (galleryMode) {
+                    // User cancelled the gallery picker — go back to ticket screen
+                    finish();
                 }
             });
 
@@ -130,11 +137,18 @@ public class CameraCaptureActivity extends AppCompatActivity {
             return;
         }
 
+        galleryMode = getIntent().getBooleanExtra("GALLERY_MODE", false);
+
         initializeViews();
         setupClickListeners();
         initializeDetectors();
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+        if (galleryMode) {
+            // Gallery mode: hide camera controls, ask validation mode, then open picker
+            layoutCameraControls.setVisibility(View.GONE);
+            cardStrictness.setVisibility(View.GONE);
+            showGalleryValidationModeDialog();
+        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED) {
             startCamera();
         } else {
@@ -142,10 +156,22 @@ public class CameraCaptureActivity extends AppCompatActivity {
         }
     }
 
+    private void showGalleryValidationModeDialog() {
+        String[] modes = {"Strict (Recommended)", "Balanced"};
+        new AlertDialog.Builder(this)
+                .setTitle("Choose Validation Mode")
+                .setItems(modes, (dialog, which) -> {
+                    switchStrictMode.setChecked(which == 0);
+                    pickImageLauncher.launch("image/*");
+                })
+                .setNegativeButton("Cancel", (dialog, which) -> finish())
+                .setCancelable(false)
+                .show();
+    }
+
     private void initializeViews() {
         previewView = findViewById(R.id.previewView);
         btnCapture = findViewById(R.id.btn_capture);
-        btnTestSaved = findViewById(R.id.btn_test_saved);
         containerPreview = findViewById(R.id.container_preview);
         imgCompressedPreview = findViewById(R.id.img_compressed_preview);
         textCompressionInfo = findViewById(R.id.text_compression_info);
@@ -156,6 +182,9 @@ public class CameraCaptureActivity extends AppCompatActivity {
         btnToggleCompare = findViewById(R.id.btn_toggle_compare);
         layoutCameraControls = findViewById(R.id.layout_camera_controls);
         overlayLoading = findViewById(R.id.overlay_loading);
+        textValidationStatus = findViewById(R.id.text_validation_status);
+        layoutPreviewButtons = findViewById(R.id.layout_preview_buttons);
+        layoutDebugInfo = findViewById(R.id.layout_debug_info);
         switchStrictMode = findViewById(R.id.switch_strict_mode);
         btnStrictnessInfo = findViewById(R.id.btn_strictness_info);
         cardStrictness = findViewById(R.id.card_strictness);
@@ -164,12 +193,16 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private void setupClickListeners() {
         findViewById(R.id.btn_back).setOnClickListener(v -> finish());
         btnCapture.setOnClickListener(v -> takePhoto());
-        btnTestSaved.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
         btnRetake.setOnClickListener(v -> {
             containerPreview.setVisibility(View.GONE);
-            layoutCameraControls.setVisibility(View.VISIBLE);
-            cardStrictness.setVisibility(View.VISIBLE);
+            textValidationStatus.setVisibility(View.GONE);
             clearBitmaps();
+            if (galleryMode) {
+                pickImageLauncher.launch("image/*");
+            } else {
+                layoutCameraControls.setVisibility(View.VISIBLE);
+                cardStrictness.setVisibility(View.VISIBLE);
+            }
         });
         btnSave.setOnClickListener(v -> saveToDatabase());
         btnToggleCompare.setOnTouchListener((v, event) -> {
@@ -241,7 +274,6 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private void takePhoto() {
         if (imageCapture == null) return;
         btnCapture.setEnabled(false);
-        btnTestSaved.setEnabled(false);
         File photoFile = new File(getCacheDir(), "photo_" + System.currentTimeMillis() + ".jpg");
         ImageCapture.OutputFileOptions outputOptions = new ImageCapture.OutputFileOptions.Builder(photoFile).build();
         imageCapture.takePicture(outputOptions, ContextCompat.getMainExecutor(this),
@@ -253,7 +285,6 @@ public class CameraCaptureActivity extends AppCompatActivity {
                     @Override
                     public void onError(@NonNull ImageCaptureException e) {
                         btnCapture.setEnabled(true);
-                        btnTestSaved.setEnabled(true);
                     }
                 });
     }
@@ -263,6 +294,8 @@ public class CameraCaptureActivity extends AppCompatActivity {
         containerPreview.setVisibility(View.VISIBLE);
         layoutCameraControls.setVisibility(View.GONE);
         cardStrictness.setVisibility(View.GONE);
+        layoutPreviewButtons.setVisibility(View.GONE);
+        layoutDebugInfo.setVisibility(View.GONE);
         btnSave.setEnabled(false);
         detectPersonWithMLKit(imageUri);
     }
@@ -296,7 +329,6 @@ public class CameraCaptureActivity extends AppCompatActivity {
             Tasks.whenAllComplete(faceTask, labelTask, poseTask, segmentTask).addOnCompleteListener(t -> {
                 overlayLoading.setVisibility(View.GONE);
                 btnCapture.setEnabled(true);
-                btnTestSaved.setEnabled(true);
 
                 boolean isStrict = switchStrictMode.isChecked();
                 boolean faceDetected = faceTask.isSuccessful() && !faceTask.getResult().isEmpty();
@@ -318,16 +350,18 @@ public class CameraCaptureActivity extends AppCompatActivity {
                     String colorName = analyzeDominantColor(finalBitmap);
 
                     runOnUiThread(() -> {
-                        boolean reject = faceDetected; 
+                        boolean reject = faceDetected;
                         String reasonText = "A face was detected.";
+                        String modeText = "Balanced";
 
-                        if (isStrict) { 
+                        if (isStrict) {
+                            modeText = "Strict";
                             if (poseDetected) { reject = true; reasonText = "A human pose was detected."; }
                             if (finalSegmentationHit) { reject = true; reasonText = "Significant human-shaped area detected."; }
                         }
 
                         if (reject) {
-                            showValidationError(reasonText);
+                            showValidationError(reasonText, modeText);
                         } else {
                             processValidImage(finalBitmap, originalSizeText, colorName);
                         }
@@ -384,15 +418,19 @@ public class CameraCaptureActivity extends AppCompatActivity {
         return "Colored";
     }
 
-    private void showValidationError(String message) {
+    private void showValidationError(String message, String mode) {
         new AlertDialog.Builder(this)
-                .setTitle("Validation Failed")
+                .setTitle("Validation Failed (" + mode + " Mode)")
                 .setMessage(message + "\nPlease retake the photo of the vehicle only.")
                 .setPositiveButton("RETAKE", (dialog, which) -> {
                     containerPreview.setVisibility(View.GONE);
-                    layoutCameraControls.setVisibility(View.VISIBLE);
-                    cardStrictness.setVisibility(View.VISIBLE);
                     clearBitmaps();
+                    if (galleryMode) {
+                        pickImageLauncher.launch("image/*");
+                    } else {
+                        layoutCameraControls.setVisibility(View.VISIBLE);
+                        cardStrictness.setVisibility(View.VISIBLE);
+                    }
                 })
                 .setCancelable(false).show();
     }
@@ -412,7 +450,9 @@ public class CameraCaptureActivity extends AppCompatActivity {
         
         imgCompressedPreview.setImageBitmap(compressedBitmap);
         btnSave.setEnabled(true);
-        Toast.makeText(this, "Validation Successful!", Toast.LENGTH_LONG).show();
+        layoutDebugInfo.setVisibility(View.VISIBLE);
+        layoutPreviewButtons.setVisibility(View.VISIBLE);
+        textValidationStatus.setVisibility(View.VISIBLE);
     }
 
     private void checkAndSetVehicleMatch(String color) {
@@ -435,6 +475,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
 
     private void clearBitmaps() {
         latestCompressedData = null;
+        imgCompressedPreview.setImageBitmap(null);
         if (originalBitmap != null) originalBitmap.recycle();
         if (compressedBitmap != null) compressedBitmap.recycle();
         originalBitmap = null;
@@ -456,7 +497,9 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 case ExifInterface.ORIENTATION_ROTATE_270: matrix.postRotate(270); break;
                 default: return bitmap;
             }
-            return Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            if (rotated != bitmap) bitmap.recycle();
+            return rotated;
         } catch (Exception e) { return bitmap; }
     }
 

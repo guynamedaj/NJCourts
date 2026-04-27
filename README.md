@@ -1,91 +1,47 @@
-# NJCourts Mobile App
+# NJCourts - Parking Citation Evidence Management
 
-Android mobile prototype for the NJ Courts project. This app provides a professional interface for officers to select tickets, validate evidence using on-device ML, and manage local records.
+A full-stack system for capturing, validating, and managing parking citation photo evidence. Built as a capstone project at NJIT.
 
----
+## Components
 
-## Tech Stack
+### Android App (`app/`)
+- **Photo capture** using CameraX with real-time ML Kit validation (face detection, pose estimation, person segmentation)
+- **Gallery import** with configurable validation strictness (Strict / Balanced)
+- **Local storage** via Room DB with offline support
+- **Sync** to backend API with status tracking (Not Synced / Submitted / Failed)
+- **Car color detection** using PyTorch Mobile
 
-- **Language:** Java
-- **Architecture:** MVVM (ViewModel, LiveData, RoomDB)
-- **Networking:** Retrofit / OkHttp
-- **ML Integration:** Google ML Kit (Face Detection, Pose Detection, Selfie Segmentation, Image Labeling)
-- **Camera:** CameraX API
-- **Persistence:** Room Database (SQLite)
-- **Minimum SDK:** Android 14 (API 34)
+### Backend API (`api/`)
+- Express + TypeScript REST API
+- Neon PostgreSQL database
+- AWS S3 for photo storage with presigned URLs
+- API key authentication
+- Endpoints: ticket CRUD, photo upload, photo deletion
 
----
+### Web App (`web/`)
+- React + Vite + Tailwind CSS
+- PCSAM-style case search and management interface
+- Case summary, photo evidence viewer with lightbox
+- Administrative evidence deletion
 
-## Midterm Milestone Features
+## Running
 
-The following core modules are implemented and up to date for the Midterm Milestone:
-
-- **Advanced ML Validation:** Multi-model validation pipeline to prevent person-detection in evidence photos.
-- **Strictness Mode Toggle:** Dynamic validation sensitivity (Balanced vs. Strict) with real-time UI feedback.
-- **Evidence Dashboard:** A persistent local grid view for reviewing and deleting captured evidence photos.
-- **Local Persistence:** Full RoomDB implementation for tickets and photo metadata (BLOB storage).
-- **Professional Camera UI:** Custom shutter, stealth-mode overlays, and instant compression (<250KB per image).
-- **Network Awareness:** Integrated connectivity checks and mobile data warning modals.
-- **Ticket Selection:** Robust ticket selection system refactored with the **Builder Design Pattern**.
-
----
-
-## Setup Instructions
-
-### 1. Clone the repository
+### API
 ```bash
-git clone https://github.com/guynamedaj/NJCourts.git
+cd api
+cp .env.example .env  # configure DB, S3, and API_KEY
+npm install
+npm run dev
 ```
 
-### 2. Open the project in Android Studio
-- Launch Android Studio
-- Click "Open"
-- Select the cloned `NJCourts` folder
-
-### 3. Sync Gradle
-Allow Android Studio to sync Gradle dependencies and download ML Kit models.
-
-### 4. Run the project
-Run the app using:
-- **Android Emulator** (API 34 / Android 14)
-- **Physical Device** running Android 14+
-
----
-
-## Project Structure
-```
-app/
-├── java/
-│   └── edu.njit.njcourts
-│       ├── ui        (Activities & ViewModels)
-│       ├── data      (RoomDB Entities, DAOs, ApiService)
-│       ├── models    (POJO Data Models & Builders)
-│       ├── adapters  (RecyclerView Adapters)
-│       └── utils     (ML, Network, & Image Utils)
-├── res/
-│   ├── layout        (XML layouts)
-│   ├── drawable      (Custom shapes & icons)
-│   └── values        (Colors & Themes)
-```
-
----
-
-## Development Workflow
-Create a feature branch when working on new functionality.
+### Web App
 ```bash
-git switch -c feature/feature1
+cd web
+npm install
+npm run dev
 ```
-After completing work, open a Pull Request for review.
+Web app runs at `http://localhost:5173` by default.
 
----
+### Android App
+Open the project in Android Studio and run on an emulator or device. For emulator, the API is reached at `http://10.0.2.2:3000/api/`. For a physical device, update `ApiConstants.java` with your machine's LAN IP.
 
-## Important Notes
-Do **NOT** commit the following files (machine-specific):
-- `local.properties`
-- `build/`
-- `.idea/`
-
----
-
-## Contributors
-NJCourts Development Team
