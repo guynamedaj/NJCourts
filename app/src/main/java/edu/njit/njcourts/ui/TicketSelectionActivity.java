@@ -14,8 +14,11 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.Executors;
 
 import edu.njit.njcourts.R;
@@ -210,6 +213,8 @@ public class TicketSelectionActivity extends AppCompatActivity {
     }
 
     private Ticket toDisplayTicket(ApiTicket a) {
+        String[] issuedAtParts = splitIssuedAt(a.issuedAt);
+
         return new Ticket.Builder()
             .setTicketNumber(a.ticketNumber)
             .setLicPlate(nullSafe(a.licensePlate))
@@ -217,9 +222,35 @@ public class TicketSelectionActivity extends AppCompatActivity {
             .setMake(nullSafe(a.vehicleMake))
             .setBodyType(nullSafe(a.vehicleModel))
             .setColor(nullSafe(a.vehicleColor))
-            .setViolation(nullSafe(a.violationType))
+            .setViolation(nullSafe(a.violationType != null && !a.violationType.isEmpty() ? a.violationType : a.offenseDisplay))
+            .setViolDate(nullSafe(issuedAtParts[0]))
+            .setViolTime(nullSafe(issuedAtParts[1]))
             .setStreet(nullSafe(a.location))
+            .setCourtCode(nullSafe(a.courtCode))
+            //.setCourtDate(nullSafe(a.courtDate))
+            //.setCourtTime(nullSafe(a.courtTime))
             .build();
+    }
+
+    private String[] splitIssuedAt(String issuedAt) {
+        if (issuedAt == null || issuedAt.isEmpty()) {
+            return new String[] {"", ""};
+        }
+
+        try {
+            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US);
+            Date parsed = parser.parse(issuedAt);
+            if (parsed == null) {
+                return new String[] {"", ""};
+            }
+
+            SimpleDateFormat dateFormatter = new SimpleDateFormat("MM/dd/yyyy", Locale.US);
+            SimpleDateFormat timeFormatter = new SimpleDateFormat("hh:mm a", Locale.US);
+            return new String[] {dateFormatter.format(parsed), timeFormatter.format(parsed)};
+        } catch (Exception e) {
+            Log.w(TAG, "Unable to parse issuedAt date", e);
+            return new String[] {"", ""};
+        }
     }
 
     private String buildVehicleSummary(ApiTicket a) {
@@ -264,8 +295,8 @@ public class TicketSelectionActivity extends AppCompatActivity {
     }
 
     private void setupSpinner() {
-        spinnerAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, tickets);
-        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerAdapter = new ArrayAdapter<>(this, R.layout.spinner_item_text, tickets);
+        spinnerAdapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
         spinnerTickets.setAdapter(spinnerAdapter);
         spinnerTickets.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -288,20 +319,20 @@ public class TicketSelectionActivity extends AppCompatActivity {
         sectionTicketDetails.setVisibility(View.VISIBLE);
         btnAttachPhoto.setVisibility(View.VISIBLE);
 
-        textLicPlate.setText("Lic Plate: " + fallback(t.getLicPlate()));
-        textState.setText("State: " + fallback(t.getState()));
-        textMake.setText("Make: " + fallback(t.getMake()));
-        textBodyType.setText("Body Type: " + fallback(t.getBodyType()));
-        textColor.setText("Color: " + fallback(t.getColor()));
+        textLicPlate.setText(fallback(t.getLicPlate()));
+        textState.setText(fallback(t.getState()));
+        textMake.setText(fallback(t.getMake()));
+        textBodyType.setText(fallback(t.getBodyType()));
+        textColor.setText(fallback(t.getColor()));
 
-        textViolation.setText("Violation: " + fallback(t.getViolation()));
-        textViolDate.setText("Date: " + fallback(t.getViolDate()));
-        textViolTime.setText("Time: " + fallback(t.getViolTime()));
-        textStreet.setText("Street: " + fallback(t.getStreet()));
+        textViolation.setText(fallback(t.getViolation()));
+        textViolDate.setText(fallback(t.getViolDate()));
+        textViolTime.setText(fallback(t.getViolTime()));
+        textStreet.setText(fallback(t.getStreet()));
 
-        textCourtDate.setText("Court Date: " + fallback(t.getCourtDate()));
-        textCourtTime.setText("Court Time: " + fallback(t.getCourtTime()));
-        textCourtCode.setText("Court Code: " + fallback(t.getCourtCode()));
+        textCourtDate.setText(fallback(t.getCourtDate()));
+        textCourtTime.setText(fallback(t.getCourtTime()));
+        textCourtCode.setText(fallback(t.getCourtCode()));
 
         // Load evidence (local + remote)
         remoteItems.clear();
