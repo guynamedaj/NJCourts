@@ -13,8 +13,6 @@ public class ApiTicket {
     public String licensePlate;
     public String plateState;
     public String location;
-    public String courtCode;
-    public String issuedAt;
     public String offenseDisplay;
     public String courtCode;
     public String violDate;
