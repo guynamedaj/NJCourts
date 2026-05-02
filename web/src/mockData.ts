@@ -55,6 +55,8 @@ type PcsamFields = Pick<
   | 'commercialLicense'
   | 'restrictionClass'
   | 'restrictionType'
+  | 'courtDate'
+  | 'courtTime'
 >
 
 type TicketCore = Omit<Ticket, keyof PcsamFields | 'ticketNumber'>
@@ -85,6 +87,8 @@ function ticket(core: TicketCore, pcsam: Partial<PcsamFields> = {}): Ticket {
     commercialLicense: '---',
     restrictionClass: '---',
     restrictionType: '---',
+    courtDate: '---',
+    courtTime: '---',
   }
   return { ...core, ticketNumber, ...defaults, ...pcsam }
 }

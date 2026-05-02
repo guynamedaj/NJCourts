@@ -16,5 +16,10 @@ public class ApiTicket {
     public String courtCode;
     public String issuedAt;
     public String offenseDisplay;
+    public String courtCode;
+    public String violDate;
+    public String violTime;
+    public String courtDate;
+    public String courtTime;
 }
 

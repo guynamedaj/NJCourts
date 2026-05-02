@@ -14,11 +14,8 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.Executors;
 
 import edu.njit.njcourts.R;
@@ -213,7 +210,6 @@ public class TicketSelectionActivity extends AppCompatActivity {
     }
 
     private Ticket toDisplayTicket(ApiTicket a) {
-        String[] issuedAtParts = splitIssuedAt(a.issuedAt);
 
         return new Ticket.Builder()
             .setTicketNumber(a.ticketNumber)
@@ -222,35 +218,15 @@ public class TicketSelectionActivity extends AppCompatActivity {
             .setMake(nullSafe(a.vehicleMake))
             .setBodyType(nullSafe(a.vehicleModel))
             .setColor(nullSafe(a.vehicleColor))
-            .setViolation(nullSafe(a.violationType != null && !a.violationType.isEmpty() ? a.violationType : a.offenseDisplay))
-            .setViolDate(nullSafe(issuedAtParts[0]))
-            .setViolTime(nullSafe(issuedAtParts[1]))
+            .setViolation(nullSafe(a.violationType))
             .setStreet(nullSafe(a.location))
             .setCourtCode(nullSafe(a.courtCode))
-            //.setCourtDate(nullSafe(a.courtDate))
-            //.setCourtTime(nullSafe(a.courtTime))
+            .setViolDate(nullSafe(a.violDate))
+            .setViolTime(nullSafe(a.violTime))
+            .setCourtDate(nullSafe(a.courtDate))
+            .setCourtTime(nullSafe(a.courtTime))
+
             .build();
-    }
-
-    private String[] splitIssuedAt(String issuedAt) {
-        if (issuedAt == null || issuedAt.isEmpty()) {
-            return new String[] {"", ""};
-        }
-
-        try {
-            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US);
-            Date parsed = parser.parse(issuedAt);
-            if (parsed == null) {
-                return new String[] {"", ""};
-            }
-
-            SimpleDateFormat dateFormatter = new SimpleDateFormat("MM/dd/yyyy", Locale.US);
-            SimpleDateFormat timeFormatter = new SimpleDateFormat("hh:mm a", Locale.US);
-            return new String[] {dateFormatter.format(parsed), timeFormatter.format(parsed)};
-        } catch (Exception e) {
-            Log.w(TAG, "Unable to parse issuedAt date", e);
-            return new String[] {"", ""};
-        }
     }
 
     private String buildVehicleSummary(ApiTicket a) {
@@ -262,7 +238,9 @@ public class TicketSelectionActivity extends AppCompatActivity {
     }
 
     private static String nullSafe(String s) {
-        return s == null ? "" : s;
+        // Backend returns "---" as the JSON placeholder for NULL nullable columns;
+        // collapse to empty so fallback() can render the em-dash consistently.
+        return (s == null || "---".equals(s)) ? "" : s;
     }
 
     private static String fallback(String s) {

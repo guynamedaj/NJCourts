@@ -46,6 +46,11 @@ export interface Ticket {
   commercialLicense: string
   restrictionClass: string
   restrictionType: string
+
+  /** Court appearance date as a pre-formatted string (e.g. "03/04/2026") to mirror Android display */
+  courtDate: string
+  /** Court appearance time as a pre-formatted string (e.g. "09:00 AM") to mirror Android display */
+  courtTime: string
 }
 
 export interface PhotoEvidence {

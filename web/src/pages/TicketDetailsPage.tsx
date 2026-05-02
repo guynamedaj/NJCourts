@@ -56,10 +56,10 @@ export function TicketDetailsPage() {
         </p>
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/')}
           className="mt-6 border border-gray-400 bg-[#f0f3f5] px-4 py-2 text-sm font-medium text-gray-900 hover:bg-[#e5e9ec]"
         >
-          Go back
+          Return to search
         </button>
       </div>
     )
@@ -82,7 +82,7 @@ export function TicketDetailsPage() {
       <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/')}
           className="border border-gray-400 bg-white px-3 py-1.5 font-medium text-gray-900 hover:bg-gray-50"
         >
           ← Back to results
@@ -99,6 +99,8 @@ export function TicketDetailsPage() {
         <div className="grid grid-cols-2 gap-x-8 gap-y-5 px-4 py-5 lg:grid-cols-4">
           <OverviewField label="Court" value={ticket.courtDisplay} highlight />
           <OverviewField label="Court code" value={ticket.courtCode} />
+          <OverviewField label="Court date" value={ticket.courtDate} />
+          <OverviewField label="Court time" value={ticket.courtTime} />
           <OverviewField label="Prefix" value={ticket.ticketPrefix} />
           <OverviewField label="Sequence number" value={ticket.sequenceNumber} />
           <OverviewField label="Citation number" value={ticket.ticketNumber} />
