@@ -219,6 +219,11 @@ public class TicketSelectionActivity extends AppCompatActivity {
             .setColor(nullSafe(a.vehicleColor))
             .setViolation(nullSafe(a.violationType))
             .setStreet(nullSafe(a.location))
+            .setCourtCode(nullSafe(a.courtCode))
+            .setViolDate(nullSafe(a.violDate))
+            .setViolTime(nullSafe(a.violTime))
+            .setCourtDate(nullSafe(a.courtDate))
+            .setCourtTime(nullSafe(a.courtTime))
             .build();
     }
 
@@ -231,7 +236,9 @@ public class TicketSelectionActivity extends AppCompatActivity {
     }
 
     private static String nullSafe(String s) {
-        return s == null ? "" : s;
+        // Backend returns "---" as the JSON placeholder for NULL nullable columns;
+        // collapse to empty so fallback() can render the em-dash consistently.
+        return (s == null || "---".equals(s)) ? "" : s;
     }
 
     private static String fallback(String s) {
