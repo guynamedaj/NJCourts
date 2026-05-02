@@ -35,6 +35,11 @@ export interface Ticket {
   commercialLicense: string | null
   restrictionClass: string | null
   restrictionType: string | null
+
+  violDate: string | null
+  violTime: string | null
+  courtDate: string | null
+  courtTime: string | null
 }
 
 export interface PhotoEvidence {

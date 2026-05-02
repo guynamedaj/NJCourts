@@ -36,6 +36,10 @@ const DISPLAY_NULLABLE_FIELDS = [
   'commercialLicense',
   'restrictionClass',
   'restrictionType',
+  'violDate',
+  'violTime',
+  'courtDate',
+  'courtTime',
 ] as const
 
 function displayTicket(row: Record<string, unknown>): Record<string, unknown> {

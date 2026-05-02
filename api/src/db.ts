@@ -48,6 +48,12 @@ export async function initSchema(): Promise<void> {
     );
   `)
 
+  // Additive migrations for tables that may predate newer columns.
+  await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS "violDate" TEXT;`)
+  await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS "violTime" TEXT;`)
+  await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS "courtDate" TEXT;`)
+  await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS "courtTime" TEXT;`)
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS photo_evidence (
       "id" TEXT PRIMARY KEY,
