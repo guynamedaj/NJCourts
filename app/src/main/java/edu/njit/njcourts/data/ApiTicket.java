@@ -20,3 +20,4 @@ public class ApiTicket {
     public String courtDate;
     public String courtTime;
 }
+
